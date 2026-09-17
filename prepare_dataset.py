@@ -44,7 +44,7 @@ DATASET_CONFIG = {
         'time_interval': 1800,  # 30分钟
         'default_start': None,  # 全部数据
         'default_end': None,
-        'raw_path': 'CHI_TAXI',
+        'raw_path': 'data/raw/CHI_TAXI',
     },
 }
 
