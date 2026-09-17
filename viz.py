@@ -843,20 +843,20 @@ def run_visualization(model, test_loader, scaler, device, args, save_dir):
 
     # 2. 原型分布降维可视化（identity / spatial / temporal）
     vis_data = None
-    if args.use_proto:
+    if args.use_proto and hasattr(model, 'collect_visualization_data'):
         vis_data = model.collect_visualization_data(layer_idx=0)
         assert vis_data is not None,             "run_visualization: model.collect_visualization_data() returned None"
         plot_prototype_analysis(vis_data, vis_dir / 'prototype_analysis.png', city_name=args.data)
 
     # 2b. 时间码本：query (圆点) vs 原型 (星形)
-    if args.use_proto and args.use_temporal:
+    if args.use_proto and args.use_temporal and hasattr(model, 'collect_visualization_data'):
         vis_data = model.collect_visualization_data(layer_idx=0)
         assert vis_data is not None,             "run_visualization: model.collect_visualization_data() returned None (temporal)"
         plot_temporal_query_prototype(vis_data, vis_dir / 'temporal_query_prototype.png',
                                       city_name=args.data, max_queries=2000)
 
     # 3. 时间步级 Temporal Prototype 使用率折线图
-    if args.use_proto and args.use_temporal:
+    if args.use_proto and args.use_temporal and hasattr(model, 'collect_visualization_data'):
         vis_data = model.collect_visualization_data(layer_idx=0)
         assert vis_data is not None,             "run_visualization: model.collect_visualization_data() returned None (per-timestep)"
         plot_temporal_per_timestep_usage(vis_data, vis_dir / 'temporal_per_timestep_usage.png',
