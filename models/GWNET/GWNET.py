@@ -99,7 +99,7 @@ class GWNET(BaseModel):
 
     model_name = "gwnet"
 
-    def __init__(self, num_nodes: int, feature_dim: int = 3,
+    def __init__(self, num_nodes: int, feature_dim: int = 1,  # 固定为1，只使用时序值
                  output_dim: int = 1, in_window: int = 12, out_window: int = 12,
                  dropout: float = 0.3, blocks: int = 4, layers: int = 2,
                  gcn_bool: bool = True, addaptadj: bool = True,
@@ -146,7 +146,7 @@ class GWNET(BaseModel):
         self.skip_convs = nn.ModuleList()
         self.bn = nn.ModuleList()
         self.gconv = nn.ModuleList()
-        self.start_conv = nn.Conv2d(in_channels=self.feature_dim,
+        self.start_conv = nn.Conv2d(in_channels=1,  # 只使用时序值特征
                                     out_channels=self.residual_channels,
                                     kernel_size=(1, 1))
 
@@ -226,7 +226,7 @@ class GWNET(BaseModel):
         adj_mx_np = adj_mx.cpu().numpy() if isinstance(adj_mx, torch.Tensor) else adj_mx
         return GWNET(
             num_nodes=num_nodes,
-            feature_dim=3,
+            feature_dim=1,
             output_dim=1,
             in_window=args.input_window,
             out_window=args.output_window,

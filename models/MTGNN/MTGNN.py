@@ -239,7 +239,7 @@ class MTGNN(BaseModel):
         adj_mx_np = adj_mx.cpu().numpy() if isinstance(adj_mx, torch.Tensor) else adj_mx
         return MTGNN(
             num_nodes=num_nodes,
-            feature_dim=3,
+            feature_dim=1,  # 固定为1，只使用时序值特征
             output_dim=1,
             in_window=args.input_window,
             out_window=args.output_window,

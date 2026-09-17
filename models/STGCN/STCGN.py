@@ -111,7 +111,8 @@ class STGCN(BaseModel):
 
         self.device = device or torch.device('cpu')
 
-        self.input_proj = nn.Conv2d(3, model_dim, (1, 1))
+        # 输入通道固定为 1，只使用时序值特征
+        self.input_proj = nn.Conv2d(1, model_dim, (1, 1))
 
         self.st_blocks = nn.ModuleList([
             STConvBlock(model_dim, num_nodes, dropout=dropout)
@@ -161,10 +162,11 @@ class STGCN(BaseModel):
             nn.init.zeros_(m.bias)
 
     def forward(self, batch: dict) -> Tensor:
-        x = batch['X']
-        B, T_in, N, C = x.shape
+        # 只使用时序值特征 [..:, 0:1]
+        x = batch['X'][..., 0:1]  # (B, T, N, 1)
+        B, T_in, N, _ = x.shape
 
-        x = x.permute(0, 3, 2, 1)
+        x = x.permute(0, 3, 2, 1)  # (B, 1, N, T)
 
         x = torch.relu(self.input_proj(x))
 

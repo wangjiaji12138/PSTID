@@ -162,7 +162,7 @@ class AGCRN(BaseModel):
     def from_args(args, num_nodes, adj_mx, device):
         return AGCRN(
             num_nodes=num_nodes,
-            feature_dim=3,
+            feature_dim=1,  # 固定为1，只使用时序值特征
             hidden_dim=args.input_embedding_dim,
             output_dim=1,
             in_window=args.input_window,

@@ -588,7 +588,7 @@ class STSSL(BaseModel):
     model_name = "stssl"
 
     def __init__(self, num_nodes: int, model_dim: int, output_dim: int = 1,
-                 in_window: int = 24, out_window: int = 24,
+                 in_window: int = 12, out_window: int = 24,
                  num_layers: int = 2, dropout: float = 0.1,
                  Kt: int = 3, Ks: int = 3,
                  nmb_prototype: int = 32,
@@ -597,7 +597,7 @@ class STSSL(BaseModel):
                  adj_mx: np.ndarray = None,
                  device: torch.device = None,
                  time_intervals: int = 1800,
-                 input_dim: int = 3):
+                 input_dim: int = 1):  # 固定为1，只使用时序值特征
         """初始化STSSL模型
         
         Args:
@@ -702,7 +702,8 @@ class STSSL(BaseModel):
             augmentation_percent=getattr(args, 'augmentation_percent', 0.1),
             adj_mx=adj_mx,
             device=device,
-            time_intervals=args.time_intervals
+            time_intervals=args.time_intervals,
+            input_dim=1,  # 固定为1，只使用时序值特征
         ).to(device)
 
     def forward(self, batch: dict) -> torch.Tensor:
@@ -716,8 +717,11 @@ class STSSL(BaseModel):
         X = batch['X']
         B, T, N, _ = X.shape
         
-        # 输入投影: (B, T, N, 3) -> (B, T, N, model_dim)
-        x = self.input_proj(X)
+        # 只使用时序值特征 input[..., 0:1]
+        x = X[..., 0:1]  # (B, T, N, 1)
+        
+        # 输入投影: (B, T, N, 1) -> (B, T, N, model_dim)
+        x = self.input_proj(x)
         
         # 时空编码
         enc_out = self.encoder(x, self.adj_mx)  # (B, 1, N, model_dim)
@@ -748,8 +752,11 @@ class STSSL(BaseModel):
         y = batch['y']
         B, T, N, _ = X.shape
         
+        # 只使用时序值特征 input[..., 0:1]
+        x = X[..., 0:1]  # (B, T, N, 1)
+        
         # 输入投影
-        x = self.input_proj(X)  # (B, T, N, model_dim)
+        x = self.input_proj(x)  # (B, T, N, model_dim)
         
         # ========== 原始视图 ==========
         repr1 = self.encoder(x, self.adj_mx)  # (B, 1, N, model_dim)
