@@ -1,0 +1,12 @@
+*.class
+*.o
+*.pyc
+*.pth
+*.npy
+*.png
+*.npz
+
+/data/processed/
+/data/raw/
+/results/
+/baseline-results/
