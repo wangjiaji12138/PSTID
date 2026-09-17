@@ -236,7 +236,28 @@ class DataProcessor:
             pickle.dump(adj_matrix, f, protocol=pickle.HIGHEST_PROTOCOL)
         print(f"Saved adj.pkl: shape {adj_matrix.shape}")
 
-        # 保存元数据
+        # ========== 保存元数据 ==========
+        # 提取节点地理坐标（用于可视化）
+        node_positions = []
+        for grid in self.gridSplitter.valid_grids:
+            node_positions.append({
+                'grid_id': grid[0],
+                'lng_min': grid[1],
+                'lng_max': grid[2],
+                'lat_min': grid[3],
+                'lat_max': grid[4],
+                'lng_center': (grid[1] + grid[2]) / 2,
+                'lat_center': (grid[3] + grid[4]) / 2
+            })
+
+        # 提取网格边界（用于可视化）
+        grid_boundaries = {
+            'lng_min': self.gridSplitter.lng_min,
+            'lng_max': self.gridSplitter.lng_max,
+            'lat_min': self.gridSplitter.lat_min,
+            'lat_max': self.gridSplitter.lat_max
+        }
+
         metadata = {
             'city': self.city,
             'grid_size': self.grid_size,
@@ -249,12 +270,14 @@ class DataProcessor:
             'time_range': {
                 'start': str(self.full_time_range[0]),
                 'end': str(self.full_time_range[-1])
-            }
+            },
+            'node_positions': node_positions,
+            'grid_boundaries': grid_boundaries
         }
         metadata_path = os.path.join(output_dir, 'metadata.json')
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
-        print(f"Saved metadata.json")
+        print(f"Saved metadata.json with node_positions and grid_boundaries")
 
         print(f"\nDataset saved to: {output_dir}")
 

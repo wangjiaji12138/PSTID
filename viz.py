@@ -948,8 +948,15 @@ def analyze_time_slots_for_visualization(test_loader):
     hours = all_time_of_day * 24
     unique_hours_rounded = np.unique(np.round(hours).astype(int))
 
+    # 修复: hour=23.5 会被 round() 四舍五入为 24，
+    # 但这不意味着数据覆盖了真正的 24:00 (00:00)
+    # 使用 clip 限制范围: 0-23 (23.999...h 对应 23:59)
+    unique_hours_rounded = np.clip(unique_hours_rounded, 0, 23)
+
+    # 更精确的检测: 覆盖至少 20 个小时认为是 24h 数据
+    hour_range = unique_hours_rounded.max() - unique_hours_rounded.min()
     is_8_20 = (unique_hours_rounded.min() >= 7) and (unique_hours_rounded.max() <= 21)
-    is_24h = (unique_hours_rounded.min() < 6) or (unique_hours_rounded.max() > 22)
+    is_24h = (hour_range >= 20) or (unique_hours_rounded.min() < 6) or (unique_hours_rounded.max() >= 22)
 
     if is_8_20 and not is_24h:
         dataset_type = '8:00-20:00'
