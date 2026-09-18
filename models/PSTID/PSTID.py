@@ -23,6 +23,47 @@ import logging
 from models.base import BaseModel
 
 
+def _compute_adj_mx_emb_init(adj_mx: torch.Tensor, emb_dim: int) -> torch.Tensor:
+    """用 adj_mx 的谱嵌入（SVD）初始化节点嵌入
+
+    Args:
+        adj_mx: 邻接矩阵 (N, N)
+        emb_dim: 目标嵌入维度
+
+    Returns:
+        初始化后的嵌入 (N, emb_dim)
+    """
+    # 确保 adj_mx 是 numpy 数组
+    if torch.is_tensor(adj_mx):
+        adj_np = adj_mx.cpu().numpy()
+    else:
+        adj_np = np.array(adj_mx)
+
+    # SVD 分解
+    # 使用淡淡的归一化拉普拉斯谱嵌入
+    d = np.sum(adj_np, axis=1)
+    d_inv_sqrt = np.power(d, -0.5, where=d > 0)
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    D_inv_sqrt = np.diag(d_inv_sqrt)
+    L = np.eye(d.shape[0]) - D_inv_sqrt @ adj_np @ D_inv_sqrt  # 对称归一化拉普拉斯
+
+    try:
+        # 取最小的 emb_dim 个特征向量（跳过第一个全1的特征向量）
+        eigvals, eigvecs = np.linalg.eigh(L)
+        # 按特征值从小到大排序，取第 1 到 emb_dim 个（跳过第 0 个全 1 向量）
+        indices = np.argsort(eigvals)
+        idx = indices[1:emb_dim + 1]  # 取 emb_dim 个非平凡特征向量
+        init_emb = eigvecs[:, idx]  # (N, emb_dim)
+        # 缩放到 [-1, 1] 范围
+        init_emb = init_emb / (np.abs(init_emb).max(axis=0, keepdims=True) + 1e-8)
+        return torch.from_numpy(init_emb).float()
+    except Exception:
+        # SVD 失败时降维到 emb_dim
+        U, S, Vt = np.linalg.svd(adj_np, full_matrices=False)
+        init_emb = U[:, :emb_dim] * np.sqrt(S[:emb_dim])
+        return torch.from_numpy(init_emb).float()
+
+
 class ProtoVisData:
     """可视化数据结构（从 models.PSTID.PSTID 复制，避免依赖不存在的模块）"""
 
@@ -75,7 +116,7 @@ class SpatialCodebook(nn.Module):
     """空间码本：编码静态/半静态节点身份
 
     职责：
-    - 接收主特征 (B,T,N,D) 和节点嵌入 (N,D_node)
+    - 接收主特征 (B,T,N,D) 和 adj_mx_emb（可学习节点嵌入）
     - 自行完成节点均值计算、维度对齐、投影、码本注意力融合
     - 返回 (attention, proto_enhanced, proj_feat)
     
@@ -83,21 +124,20 @@ class SpatialCodebook(nn.Module):
     - 使用 softmax 软分配，根据相似度加权所有原型
     """
 
-    def __init__(self, num_protos: int, proto_emb_dim: int = None, temp: float = 0.5,
-                 spatio_emb_dim: int = None, time_series_dim: int = None):
+    def __init__(self, num_protos: int, proto_emb_dim: int = None,
+                 adj_mx_emb_dim: int = None, time_series_dim: int = None):
         super().__init__()
         self.num_protos = num_protos
         self.proto_emb_dim = proto_emb_dim
-        self.temp = nn.Parameter(torch.tensor(temp))
 
         # 原型参数
         self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
         nn.init.orthogonal_(self.prototypes)
 
-        # 统一投影层：拼接 (spatio_emb + time_series_mean) → proto_emb_dim
-        combined_dim = spatio_emb_dim + time_series_dim
+        # 统一投影层：拼接 (adj_mx_emb + time_series_mean) → proto_emb_dim
+        combined_dim = adj_mx_emb_dim + time_series_dim
         self.proj = nn.Linear(combined_dim, proto_emb_dim)
-
+    
     def _compute_attention(self, proj_feat: torch.Tensor) -> tuple:
         """计算原型注意力（proj_feat 形状: (N, D)）
 
@@ -108,30 +148,23 @@ class SpatialCodebook(nn.Module):
             attention: (N, num_protos) 软分配权重
             proto_enhanced: (N, proto_emb_dim) 原型增强特征
         """
-        N, D = proj_feat.shape
+        # 点积相似度（无归一化，无温度）
+        sim = proj_feat @ self.prototypes.t()  # (N, num_protos)
 
-        # 归一化并计算相似度
-        p_norm = F.normalize(self.prototypes, p=2, dim=1)  # (num_protos, D)
-        q_norm = F.normalize(proj_feat, p=2, dim=1)  # (N, D)
-        sim = q_norm @ p_norm.t()  # (N, num_protos)
-
-        # 使用温度缩放
-        sim_scaled = sim / self.temp
-
-        # 软分配：直接使用 softmax 权重
-        soft_weights = F.softmax(sim_scaled, dim=-1)  # (N, num_protos)
+        # 软分配
+        soft_weights = F.softmax(sim, dim=-1)  # (N, num_protos)
 
         # 软加权求和
         proto_enhanced = soft_weights @ self.prototypes  # (N, D)
 
         return soft_weights, proto_enhanced
 
-    def forward(self, time_series_emb: torch.Tensor, spatio_emb: torch.Tensor) -> dict:
+    def forward(self, time_series_emb: torch.Tensor, adj_mx_emb: torch.Tensor = None) -> dict:
         """完整前向传播：投影 + 码本注意力
 
         Args:
             time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
-            spatio_emb: 空间嵌入 (N, D_spatio)
+            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
 
         Returns:
             dict with keys:
@@ -142,9 +175,9 @@ class SpatialCodebook(nn.Module):
         B, T, N, _ = time_series_emb.shape
 
         # ===== 静态 Query：所有样本共享 =====
-        # 使用时间序列均值 + spatio_emb 拼接后统一投影
+        # 使用时间序列均值 + adj_mx_emb 拼接后统一投影
         x_node_mean = time_series_emb.mean(dim=1).mean(dim=0)  # (N, D_time_series)
-        x_combined = torch.cat([spatio_emb, x_node_mean], dim=-1)  # (N, D_spatio + D_time_series)
+        x_combined = torch.cat([adj_mx_emb, x_node_mean], dim=-1)  # (N, D_adj_mx + D_time_series)
         proj_feat = self.proj(x_combined)  # (N, proto_emb_dim)
 
         attention_weights, proto_enhanced = self._compute_attention(proj_feat)
@@ -252,7 +285,7 @@ class ProtoModule(nn.Module):
     """原型模块：只负责编排和融合，不再计算时空码本的内部逻辑
 
     职责：
-    - 接收主特征 (B,T,N,D) 和节点嵌入 (N,D_node)
+    - 接收主特征 (B,T,N,D) 和 adj_mx_emb（可学习节点嵌入）
     - 调用各码本获取 proto_enhanced
     - 融合输出
     """
@@ -262,7 +295,7 @@ class ProtoModule(nn.Module):
                  use_spatio: bool = True,
                  use_temporal: bool = True,
                  proto_temp: float = 0.5,
-                 spatial_emb_dim: int = None,
+                 adj_mx_emb_dim: int = None,
                  time_series_dim: int = None,
                  time_of_day_size: int = None,
                  day_of_week_size: int = None,
@@ -276,7 +309,7 @@ class ProtoModule(nn.Module):
         self.use_spatio = use_spatio
         self.use_temporal = use_temporal
         self.proto_dim = proto_dim
-        self.spatial_emb_dim = spatial_emb_dim
+        self.adj_mx_emb_dim = adj_mx_emb_dim
         self.proto_emb_dim = proto_emb_dim
 
         self.spatial_codebook = None
@@ -284,8 +317,8 @@ class ProtoModule(nn.Module):
 
         if use_spatio:
             self.spatial_codebook = SpatialCodebook(
-                n_spatial, proto_emb_dim=proto_emb_dim, temp=proto_temp,
-                spatio_emb_dim=spatial_emb_dim,
+                n_spatial, proto_emb_dim=proto_emb_dim,
+                adj_mx_emb_dim=adj_mx_emb_dim,
                 time_series_dim=time_series_dim,
             )
 
@@ -304,19 +337,19 @@ class ProtoModule(nn.Module):
         self.proto_out_proj = nn.Linear(proto_dim, hidden_dim)
 
     def forward(self, time_series_emb: torch.Tensor,
-                spatio_emb: torch.Tensor = None,
+                adj_mx_emb: torch.Tensor = None,
                 tid_emb: torch.Tensor = None, diw_emb: torch.Tensor = None) -> tuple:
         """计算原型注意力融合（纯编排：调用码本 → 融合输出）
 
         Args:
             time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
-            spatio_emb: 空间嵌入 (N, D_spatio)
+            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
             tid_emb: 主模型的时间嵌入 (B, T, N, D_tid)
             diw_emb: 主模型的星期嵌入 (B, T, N, D_diw)
         """
-        # ---- 空间码本：使用 time_series_emb 和 spatio_emb ----
+        # ---- 空间码本：使用 time_series_emb 和 adj_mx_emb ----
         if self.use_spatio:
-            spatial_out = self.spatial_codebook(time_series_emb, spatio_emb)
+            spatial_out = self.spatial_codebook(time_series_emb, adj_mx_emb)
         else:
             spatial_out = None
 
@@ -386,14 +419,14 @@ class ProtoModule(nn.Module):
                 codebook_proj_feats)
 
     def apply(self, time_series_emb: torch.Tensor,
-              spatio_emb: torch.Tensor = None,
+              adj_mx_emb: torch.Tensor = None,
               tid_emb: torch.Tensor = None, diw_emb: torch.Tensor = None,
               collect_cache: bool = False) -> tuple:
         """应用原型模块增强嵌入
 
         Args:
             time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
-            spatio_emb: 空间嵌入 (N, D_spatio)
+            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
             tid_emb: 主模型的时间嵌入 (B, T, N, D_tid)
             diw_emb: 主模型的星期嵌入 (B, T, N, D_diw)
             collect_cache: 是否收集可视化缓存数据
@@ -404,7 +437,7 @@ class ProtoModule(nn.Module):
         """
         # 调用 proto_module
         spatial_proto, temporal_proto, pa, _, codebook_proj_feats = self.forward(
-            time_series_emb, spatio_emb, tid_emb, diw_emb
+            time_series_emb, adj_mx_emb, tid_emb, diw_emb
         )
 
         # 提取 proto_enhanced
@@ -534,7 +567,10 @@ class PSTID(BaseModel):
                  use_temporal: bool = True,
                  proto_uniformity_weight: float = 0.0,
                  # 新增参数
-                 proto_emb_dim: int = None):
+                 proto_emb_dim: int = None,
+                 # adj_mx 衍生的可学习节点嵌入维度
+                 adj_mx_emb_dim: int = 64,
+                 adj_mx: torch.Tensor = None):
         super().__init__()
 
         # ==================== STID 基础参数 ====================
@@ -593,6 +629,23 @@ class PSTID(BaseModel):
         # ProtoModule 的 proto_dim：如果提供了 proto_emb_dim 则使用它，否则使用 hidden_dim
         self.proto_emb_dim = proto_emb_dim if proto_emb_dim is not None else self.hidden_dim
         self.proto_dim = self.proto_emb_dim
+        
+        # adj_mx 衍生的可学习节点嵌入
+        self.adj_mx_emb_dim = adj_mx_emb_dim
+        if adj_mx is not None:
+            # 用 adj_mx 的谱嵌入（SVD）初始化
+            init_emb = _compute_adj_mx_emb_init(adj_mx, adj_mx_emb_dim).to(device)
+            # 如果 init_emb 的维度与目标不符，做线性插值
+            if init_emb.shape[1] < adj_mx_emb_dim:
+                # 填充随机噪声
+                padding = torch.randn(init_emb.shape[0], adj_mx_emb_dim - init_emb.shape[1], device=init_emb.device)
+                init_emb = torch.cat([init_emb, padding], dim=1)
+            elif init_emb.shape[1] > adj_mx_emb_dim:
+                init_emb = init_emb[:, :adj_mx_emb_dim]
+            self.adj_mx_emb = nn.Parameter(init_emb)
+        else:
+            self.adj_mx_emb = nn.Parameter(torch.empty(self.num_nodes, self.adj_mx_emb_dim))
+            nn.init.xavier_uniform_(self.adj_mx_emb)
 
         # ==================== ProtoModule ====================
         if self.use_proto:
@@ -604,7 +657,7 @@ class PSTID(BaseModel):
                 use_spatio=self.use_spatio,
                 use_temporal=self.use_temporal,
                 proto_temp=self.proto_temperature,
-                spatial_emb_dim=self.spatial_emb_dim,
+                adj_mx_emb_dim=self.adj_mx_emb_dim,
                 time_series_dim=self.time_series_emb_dim,
                 time_of_day_size=self.time_of_day_size,
                 day_of_week_size=self.day_of_week_size,
@@ -837,7 +890,8 @@ class PSTID(BaseModel):
         # time_series_emb: (B, T, N, D_time_series)
         # tid_emb: (B, T, N, D_tid) 或 None
         # diw_emb: (B, T, N, D_diw) 或 None
-        # spatio_emb: (N, D_spatio) 用于原型码本
+        # spatio_emb: (N, D_spatio) 用于主模型的残差连接
+        # adj_mx_emb: (N, D_adj_mx) 用于 ProtoModule 的空间码本
 
         # 2. 保存时间信息（用于可视化对齐）- 传递给 ProtoModule
         if collect_cache:
@@ -863,7 +917,7 @@ class PSTID(BaseModel):
         if self.use_proto and self.proto_module is not None:
             proto_enhanced, proto_info = self.proto_module.apply(
                 time_series_emb=time_series_emb,
-                spatio_emb=spatio_emb,
+                adj_mx_emb=self.adj_mx_emb,
                 tid_emb=tid_emb,  # 直接传递主模型的时间嵌入
                 diw_emb=diw_emb,  # 直接传递主模型的星期嵌入
                 collect_cache=collect_cache,
@@ -912,6 +966,40 @@ class PSTID(BaseModel):
         
         return prediction
 
+    def compute_laplacian_loss(self, adj_mx: torch.Tensor = None, weight: float = 0.01) -> torch.Tensor:
+        """拉普拉斯正则化损失：相邻节点的 adj_mx_emb 应该相似
+        
+        L = I - D^{-1/2} A D^{-1/2}（对称归一化拉普拉斯）
+        loss = tr(emb^T L emb) / tr(emb^T emb)
+        
+        Args:
+            adj_mx: 邻接矩阵 (N, N)，如果为 None 则使用缓存的 self._cached_adj_mx
+            weight: 正则化权重
+        
+        Returns:
+            laplacian_loss: 标量损失
+        """
+        # 获取 adj_mx
+        if adj_mx is None:
+            adj_mx = getattr(self, '_cached_adj_mx', None)
+        if adj_mx is None:
+            return torch.tensor(0.0, device=self.adj_mx_emb.device)
+        
+        adj = adj_mx.to(self.adj_mx_emb.device)
+        emb = self.adj_mx_emb  # (N, D)
+        
+        # 计算度矩阵
+        d = adj.sum(dim=1, keepdim=True).clamp(min=1e-8)  # (N, 1)
+        D_inv_sqrt = torch.pow(d, -0.5)  # (N, 1)
+        
+        # 对称归一化拉普拉斯: L = I - D^{-1/2} A D^{-1/2}
+        L = torch.eye(adj.shape[0], device=adj.device) - D_inv_sqrt * adj * D_inv_sqrt.t()
+        
+        # 损失: tr(emb^T L emb) / tr(emb^T emb)
+        loss = torch.trace(emb.T @ L @ emb) / (emb.pow(2).sum() + 1e-8)
+        
+        return weight * loss
+
     def get_proto_usage_summary(self, decimals: int = 2) -> str:
         """生成原型使用情况摘要
 
@@ -958,7 +1046,7 @@ class PSTID(BaseModel):
         Args:
             args: 命令行参数或参数字典
             num_nodes: 节点数量
-            adj_mx: 邻接矩阵（STID/PSTID 不使用，但保持接口一致）
+            adj_mx: 邻接矩阵（用于谱嵌入初始化 adj_mx_emb）
             device: 计算设备
         
         Returns:
@@ -984,15 +1072,23 @@ class PSTID(BaseModel):
             if_spatial=_get_arg(args, 'if_spatial', True),
             if_time_in_day=_get_arg(args, 'if_time_in_day', True),
             if_day_in_week=_get_arg(args, 'if_day_in_week', True),
-        device=device,
-        # ProtoModule 参数
-        num_spatial_prototypes=_get_arg(args, 'num_spatial_prototypes', 16),
-        num_temporal_prototypes=_get_arg(args, 'num_temporal_prototypes', 8),
-        proto_temperature=_get_arg(args, 'proto_temperature', 0.5),
-        use_proto=_get_arg(args, 'use_proto', True),
-        use_spatio=_get_arg(args, 'use_spatio', True),
-        use_temporal=_get_arg(args, 'use_temporal', True),
-        proto_uniformity_weight=_get_arg(args, 'proto_uniformity_weight', 0.0),
-        # 新增参数
-        proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
-    )
+            device=device,
+            # ProtoModule 参数
+            num_spatial_prototypes=_get_arg(args, 'num_spatial_prototypes', 16),
+            num_temporal_prototypes=_get_arg(args, 'num_temporal_prototypes', 8),
+            proto_temperature=_get_arg(args, 'proto_temperature', 0.5),
+            use_proto=_get_arg(args, 'use_proto', True),
+            use_spatio=_get_arg(args, 'use_spatio', True),
+            use_temporal=_get_arg(args, 'use_temporal', True),
+            proto_uniformity_weight=_get_arg(args, 'proto_uniformity_weight', 0.0),
+            # 新增参数
+            proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
+            # adj_mx 衍生的可学习节点嵌入维度
+            adj_mx_emb_dim=_get_arg(args, 'adj_mx_emb_dim', 64),
+            # 传入 adj_mx 用于谱嵌入初始化
+            adj_mx=adj_mx,
+        )
+
+    def cache_adj_mx(self, adj_mx: torch.Tensor):
+        """缓存 adj_mx 用于拉普拉斯正则化（不需要梯度）"""
+        self._cached_adj_mx = adj_mx.detach()

@@ -103,6 +103,8 @@ def create_parser():
     parser.add_argument('--input_embedding_dim', type=int, default=32)
     parser.add_argument('--node_emb_dim', type=int, default=16)
     parser.add_argument('--proto_emb_dim', type=int, default=64)
+    parser.add_argument('--adj_mx_emb_dim', type=int, default=64)
+    parser.add_argument('--laplacian_weight', type=float, default=0.01)
     parser.add_argument('--tid', type=int, default=16)
     parser.add_argument('--diw', type=int, default=16)
     parser.add_argument('--time_intervals', type=int, default=1800)
@@ -206,8 +208,13 @@ def normalize_input(X, scaler, input_dim=3):
 
 
 def train_epoch(model, dataloader, optimizer, criterion, device, scaler, 
-                clip_grad=None, model_name='PSTID', input_dim=3, scaler_amp=None, epoch=0):
-    """Train for one epoch with multi-channel support and optional mixed precision training."""
+                clip_grad=None, model_name='PSTID', input_dim=3, scaler_amp=None, epoch=0,
+                laplacian_weight=0.0):
+    """Train for one epoch with multi-channel support and optional mixed precision training.
+    
+    Args:
+        laplacian_weight: 拉普拉斯正则化权重（仅 PSTID 模型生效）
+    """
     model.train()
 
     epoch_loss = 0.0
@@ -215,9 +222,11 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     epoch_stssl_temporal_loss = 0.0
     epoch_stssl_spatial_loss = 0.0
     epoch_uniformity_loss = 0.0
+    epoch_laplacian_loss = 0.0
     n_batches = 0
 
     use_stssl = model_name in ['STSSL', 'STSSDL']
+    use_pstid = model_name.upper() == 'PSTID'
 
     for batch in dataloader:
         X = batch['X'].to(device)
@@ -242,8 +251,16 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
                 
                 y_target_raw = y_raw[..., 0:1] # (B, T, N, 1)
 
-                loss = criterion(y_pred_raw, y_target_raw)
-                epoch_pred_loss += loss.detach().item()
+                pred_loss = criterion(y_pred_raw, y_target_raw)
+                epoch_pred_loss += pred_loss.detach().item()
+                
+                # PSTID: 拉普拉斯正则化（让相邻节点嵌入相似）
+                if use_pstid and laplacian_weight > 0:
+                    lap_loss = model.compute_laplacian_loss(weight=laplacian_weight)
+                    epoch_laplacian_loss += lap_loss.detach().item()
+                    loss = pred_loss + lap_loss
+                else:
+                    loss = pred_loss
 
         # 混合精度训练的 backward
         if scaler_amp is not None:
@@ -267,10 +284,11 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     avg_stssl_temporal = epoch_stssl_temporal_loss / n_batches if n_batches > 0 and use_stssl else 0.0
     avg_stssl_spatial = epoch_stssl_spatial_loss / n_batches if n_batches > 0 and use_stssl else 0.0
     avg_uniformity = epoch_uniformity_loss / n_batches if n_batches > 0 else 0.0
+    avg_laplacian = epoch_laplacian_loss / n_batches if n_batches > 0 else 0.0
 
     return {'loss': avg_loss, 'pred_loss': avg_pred,
             'stssl_temporal_loss': avg_stssl_temporal, 'stssl_spatial_loss': avg_stssl_spatial,
-            'uniformity_loss': avg_uniformity}
+            'uniformity_loss': avg_uniformity, 'laplacian_loss': avg_laplacian}
 
 
 @torch.no_grad()
@@ -346,7 +364,7 @@ def save_results(results_dir, training_history, test_metrics, args):
 
 def train_single_model(args, model, train_loader, val_loader, test_loader,
                        optimizer, scheduler, criterion, device, scaler, logger,
-                       model_name, num_nodes):
+                       model_name, num_nodes, adj_mx=None):
     """Train a single model with early stopping and optional mixed precision training."""
     best_val_mae = float('inf')
     patience_counter = 0
@@ -355,6 +373,11 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
 
     # 判断是否为 HA 模型
     is_ha = model_name.upper() == 'HA'
+    
+    # PSTID: 缓存 adj_mx 用于拉普拉斯正则化
+    if model_name.upper() == 'PSTID' and adj_mx is not None:
+        model.cache_adj_mx(adj_mx)
+        logger.info(f"PSTID: adj_mx cached for laplacian regularization (weight={args.laplacian_weight:.4f})")
     
     # 创建混合精度训练的 GradScaler
     scaler_amp = torch.amp.GradScaler('cuda', enabled=not is_ha)
@@ -384,6 +407,7 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
             model, train_loader, optimizer, criterion, device, scaler, args.clip_grad, model_name,
             input_dim=args.input_dim, scaler_amp=scaler_amp,
             epoch=epoch,
+            laplacian_weight=args.laplacian_weight if model_name.upper() == 'PSTID' else 0.0,
         )
         val_metrics = evaluate(model, val_loader, criterion, device, scaler,
                               input_dim=args.input_dim, output_dim=args.output_dim,
@@ -410,9 +434,11 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
         elif model_name.upper() in ['PSTID', 'STID', 'STDN']:
             # 主模型日志
             logger.info(f"Epoch {epoch+1}/{args.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
+            lap_loss = train_metrics.get('laplacian_loss', 0.0)
+            lap_str = f" | LapLoss: {lap_loss:.6f}" if model_name.upper() == 'PSTID' and lap_loss > 0 else ""
             logger.info(
                 f"Train Loss: {train_metrics['loss']:.4f} | "
-                f"UnifLoss: {train_metrics.get('uniformity_loss', 0.0):.4f} | "
+                f"UnifLoss: {train_metrics.get('uniformity_loss', 0.0):.4f}{lap_str} | "
                 f"Val Loss: {val_metrics['loss']:.4f} | "
                 f"Val MAE: {val_metrics['MAE']:.4f}"
             )
@@ -678,7 +704,7 @@ def main():
     best_model_path, training_history, test_metrics = train_single_model(
         args, model, train_loader, val_loader, test_loader,
         optimizer, scheduler, mae_torch, device, scaler, logger,
-        model_name, num_nodes
+        model_name, num_nodes, adj_mx=adj_mx,
     )
 
     # Save results
