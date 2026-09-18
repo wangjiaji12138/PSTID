@@ -19,7 +19,7 @@ class GRU(BaseModel):
     model_name = "gru"
     
     def __init__(self, num_nodes: int, input_window: int = 24, output_window: int = 24,
-                 input_dim: int = 1, output_dim: int = 1,  # input_dim=1 表示只用时序值
+                 input_dim: int = 3, output_dim: int = 1,  # input_dim=3: 时序值 + 时间特征
                  input_embedding_dim: int = 64, num_layers: int = 2,
                  dropout: float = 0.1, **kwargs):
         super().__init__()
@@ -33,8 +33,8 @@ class GRU(BaseModel):
         self.num_layers = num_layers
         
         # 输入投影：将 input_dim -> input_embedding_dim
-        # input_dim 固定为 1，只使用时序值特征
-        self.input_proj = nn.Linear(1, self.hidden_dim)
+        # input_dim=3: [时序值, hour, dow]
+        self.input_proj = nn.Linear(input_dim, self.hidden_dim)
         
         # Encoder GRU
         self.encoder = nn.GRU(
@@ -66,7 +66,7 @@ class GRU(BaseModel):
             num_nodes=num_nodes,
             input_window=getattr(args, 'input_window', 24),
             output_window=getattr(args, 'output_window', 24),
-            input_dim=1,  # 固定为1，只使用时序值特征
+            input_dim=getattr(args, 'input_dim', 3),  # 支持时间特征
             output_dim=getattr(args, 'output_dim', 1),
             input_embedding_dim=getattr(args, 'input_embedding_dim', 64),
             num_layers=getattr(args, 'num_layers', 2),
@@ -77,20 +77,20 @@ class GRU(BaseModel):
         """前向传播 - Encoder-Decoder 架构
         
         Args:
-            batch: dict, 包含 'X' (B, T_in, N, C_in)
+            batch: dict, 包含 'X' (B, T_in, N, input_dim) - input_dim=3: [时序值, hour, dow]
         
         Returns:
             predictions: (B, T_out, N, C_out)
         """
-        # 提取时序值：只使用第一个通道
-        X = batch['X'][..., 0:1]  # (B, T_in, N, 1)
+        # 提取输入：(B, T_in, N, input_dim)
+        X = batch['X']
         B, T_in, N, _ = X.shape
         
-        # 重塑: (B, T_in, N, 1) -> (B*T, T_in, 1)
-        X = X.view(B * N, T_in, 1)
+        # 重塑: (B, T_in, N, input_dim) -> (B*N, T_in, input_dim)
+        X = X.view(B * N, T_in, self.input_dim)
         
         # 输入投影
-        X = self.input_proj(X)  # (B*T, T_in, self.hidden_dim)
+        X = self.input_proj(X)  # (B*N, T_in, self.hidden_dim)
         X = self.dropout(X)
         
         # Encoder: 编码输入序列

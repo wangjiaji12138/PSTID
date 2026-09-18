@@ -96,10 +96,13 @@ class GCONV(nn.Module):
             pass
         else:
             for support in self._supports:
-                x1 = torch.sparse.mm(support, x0)
+                # Convert sparse to dense for compatibility with CUDA operations
+                # Sparse mm doesn't support Half precision on CUDA
+                support_dense = support.to_dense().to(torch.float32)
+                x1 = torch.mm(support_dense, x0.to(torch.float32)).to(x0.dtype)
                 x = self._concat(x, x1)
                 for k in range(2, self._max_diffusion_step + 1):
-                    x2 = 2 * torch.sparse.mm(support, x1) - x0
+                    x2 = (2 * torch.mm(support_dense, x1.to(torch.float32)) - x0.to(torch.float32)).to(x0.dtype)
                     x = self._concat(x, x2)
                     x1, x0 = x2, x1
 

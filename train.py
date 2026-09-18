@@ -33,7 +33,7 @@ import viz as _viz
 
 
 MODEL_LIST = ["HA", "GRU", "STGCN", "AGCRN", "GWNET", "MEGACRN", "STNORM",
-               "MTGNN", "STAEFORMER", "STDN", "STID", "PSTID", "STSSL", "STSSDL", "PDFORMER"]
+               "MTGNN", "STAEFORMER", "STDN", "STID", "PSTID", "DCRNN", "STSSL", "STSSDL", "PDFORMER"]
 
 def set_seed(seed: int = 42, deterministic: bool = True):
     """Set random seed for reproducibility."""
@@ -90,7 +90,7 @@ def create_parser():
     # 3) Device
     # ============================================================
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--gpu', type=int, default=2)
 
     # ============================================================
     # 4) Model architecture

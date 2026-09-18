@@ -2,6 +2,8 @@
 
 # 模型列表
 MODELS=(
+    # "GRU"
+    # "HA"
     "DCRNN"        # 2018, 图卷积开山作
     # 图学习（3个）
     "MTGNN"        # 2020, 自适应图
@@ -22,10 +24,6 @@ MODELS=(
     "STSSDL"       # 2025, 自监督
 )
 
-M=(
-    "GRU"
-)
-
 # 数据集列表
 DATASETS=(
     "cq"
@@ -41,12 +39,12 @@ DATASETS=(
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
-    for model in "${M[@]}"; do
+    for model in "${MODELS[@]}"; do
         echo "========================================"
         echo "Running: python train.py --data $data --model $model"
         echo "========================================"
         
-        python train.py --data "$data" --model "$model" --epoch 100 --gpu 0
+        python train.py --data "$data" --model "$model" --epoch 100 --gpu 2
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then
