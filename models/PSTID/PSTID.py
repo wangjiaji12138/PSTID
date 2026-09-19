@@ -206,10 +206,12 @@ class SpatialCodebook(nn.Module):
     """
 
     def __init__(self, num_protos: int, proto_emb_dim: int = None,
-                 adj_mx_emb_dim: int = None, time_series_dim: int = None):
+                 adj_mx_emb_dim: int = None, time_series_dim: int = None,
+                 temperature: float = 0.5):
         super().__init__()
         self.num_protos = num_protos
         self.proto_emb_dim = proto_emb_dim
+        self.temperature = temperature
 
         # 原型参数
         self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
@@ -229,11 +231,11 @@ class SpatialCodebook(nn.Module):
             attention: (N, num_protos) 软分配权重
             proto_enhanced: (N, proto_emb_dim) 原型增强特征
         """
-        # 点积相似度（无归一化，无温度）
+        # 点积相似度（无归一化），用 temperature 控制 softmax 锐度
         sim = proj_feat @ self.prototypes.t()  # (N, num_protos)
 
-        # 软分配
-        soft_weights = F.softmax(sim, dim=-1)  # (N, num_protos)
+        # 软分配（温度越大分布越均匀）
+        soft_weights = F.softmax(sim / self.temperature, dim=-1)  # (N, num_protos)
 
         # 软加权求和
         proto_enhanced = soft_weights @ self.prototypes  # (N, D)
@@ -401,6 +403,7 @@ class ProtoModule(nn.Module):
                 n_spatial, proto_emb_dim=proto_emb_dim,
                 adj_mx_emb_dim=adj_mx_emb_dim,
                 time_series_dim=time_series_dim,
+                temperature=proto_temp,
             )
 
         if use_temporal:

@@ -273,7 +273,6 @@ Regression: output (B, output_window, N, 1)
 | `num_spatial_prototypes` | 4-16 | 空间原型数量 |
 | `num_temporal_prototypes` | 16-1326 | 时间原型数量 |
 | `proto_temperature` | 0.5 | 原型温度参数 |
-| `spatial_idx_dropout` | 0.1 | 空间原型丢弃率 |
 
 ### 6. 消融开关
 
