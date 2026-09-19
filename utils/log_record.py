@@ -98,7 +98,6 @@ Proto: {getattr(args, 'use_proto', 'N/A')} (spatio={getattr(args, 'use_spatio', 
 Num spatial protos: {getattr(args, 'num_spatial_prototypes', 'N/A')}
 Num temporal protos: {getattr(args, 'num_temporal_prototypes', 'N/A')}
 Proto temperature: {getattr(args, 'proto_temperature', 'N/A')}
-Proto uniformity weight: {getattr(args, 'proto_uniformity_weight', 'N/A')}
 Proto transition weight: {getattr(args, 'proto_transition_weight', 'N/A')}"""
         self.info(config_str)
 

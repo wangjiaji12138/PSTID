@@ -105,6 +105,8 @@ def create_parser():
     parser.add_argument('--proto_emb_dim', type=int, default=64)
     parser.add_argument('--adj_mx_emb_dim', type=int, default=64)
     parser.add_argument('--laplacian_weight', type=float, default=0.01)
+    parser.add_argument('--spatial_contrastive_weight', type=float, default=0.1)
+    parser.add_argument('--spatial_contrastive_temperature', type=float, default=0.1)
     parser.add_argument('--tid', type=int, default=16)
     parser.add_argument('--diw', type=int, default=16)
     parser.add_argument('--time_intervals', type=int, default=1800)
@@ -121,11 +123,8 @@ def create_parser():
     # 5b) Prototype temperature
     parser.add_argument('--proto_temperature', type=float, default=0.5)
 
-    # 5c) 原型均匀性损失
-    parser.add_argument('--proto_uniformity_weight', type=float, default=0.0)
-
     # 5d) 原型 dropout
-    parser.add_argument('--spatial_idx_dropout', type=float, default=0.1)
+    parser.add_argument('--spatial_idx_dropout', type=float, default=0.0)
 
     # ============================================================
     # 6) Ablation switches (0=off, 1=on)
@@ -209,11 +208,12 @@ def normalize_input(X, scaler, input_dim=3):
 
 def train_epoch(model, dataloader, optimizer, criterion, device, scaler, 
                 clip_grad=None, model_name='PSTID', input_dim=3, scaler_amp=None, epoch=0,
-                laplacian_weight=0.0):
+                laplacian_weight=0.0, contrastive_weight=0.0):
     """Train for one epoch with multi-channel support and optional mixed precision training.
     
     Args:
         laplacian_weight: 拉普拉斯正则化权重（仅 PSTID 模型生效）
+        contrastive_weight: 空间对比损失权重（仅 PSTID 模型生效）
     """
     model.train()
 
@@ -221,8 +221,8 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     epoch_pred_loss = 0.0
     epoch_stssl_temporal_loss = 0.0
     epoch_stssl_spatial_loss = 0.0
-    epoch_uniformity_loss = 0.0
     epoch_laplacian_loss = 0.0
+    epoch_contrastive_loss = 0.0
     n_batches = 0
 
     use_stssl = model_name in ['STSSL', 'STSSDL']
@@ -261,6 +261,12 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
                     loss = pred_loss + lap_loss
                 else:
                     loss = pred_loss
+                
+                # PSTID: 空间对比损失（让相邻节点的嵌入更相似）
+                if use_pstid and contrastive_weight > 0:
+                    cont_loss = model.compute_contrastive_loss()
+                    epoch_contrastive_loss += cont_loss.detach().item()
+                    loss = loss + cont_loss
 
         # 混合精度训练的 backward
         if scaler_amp is not None:
@@ -283,12 +289,13 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     avg_pred = epoch_pred_loss / n_batches if n_batches > 0 else 0.0
     avg_stssl_temporal = epoch_stssl_temporal_loss / n_batches if n_batches > 0 and use_stssl else 0.0
     avg_stssl_spatial = epoch_stssl_spatial_loss / n_batches if n_batches > 0 and use_stssl else 0.0
-    avg_uniformity = epoch_uniformity_loss / n_batches if n_batches > 0 else 0.0
     avg_laplacian = epoch_laplacian_loss / n_batches if n_batches > 0 else 0.0
+    avg_contrastive = epoch_contrastive_loss / n_batches if n_batches > 0 else 0.0
 
     return {'loss': avg_loss, 'pred_loss': avg_pred,
             'stssl_temporal_loss': avg_stssl_temporal, 'stssl_spatial_loss': avg_stssl_spatial,
-            'uniformity_loss': avg_uniformity, 'laplacian_loss': avg_laplacian}
+            'laplacian_loss': avg_laplacian,
+            'contrastive_loss': avg_contrastive}
 
 
 @torch.no_grad()
@@ -408,6 +415,7 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
             input_dim=args.input_dim, scaler_amp=scaler_amp,
             epoch=epoch,
             laplacian_weight=args.laplacian_weight if model_name.upper() == 'PSTID' else 0.0,
+            contrastive_weight=args.spatial_contrastive_weight if model_name.upper() == 'PSTID' else 0.0,
         )
         val_metrics = evaluate(model, val_loader, criterion, device, scaler,
                               input_dim=args.input_dim, output_dim=args.output_dim,
@@ -435,10 +443,12 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
             # 主模型日志
             logger.info(f"Epoch {epoch+1}/{args.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
             lap_loss = train_metrics.get('laplacian_loss', 0.0)
+            cont_loss = train_metrics.get('contrastive_loss', 0.0)
             lap_str = f" | LapLoss: {lap_loss:.6f}" if model_name.upper() == 'PSTID' and lap_loss > 0 else ""
+            cont_str = f" | ContLoss: {cont_loss:.6f}" if model_name.upper() == 'PSTID' and cont_loss > 0 else ""
             logger.info(
                 f"Train Loss: {train_metrics['loss']:.4f} | "
-                f"UnifLoss: {train_metrics.get('uniformity_loss', 0.0):.4f}{lap_str} | "
+                f"{lap_str}{cont_str} | "
                 f"Val Loss: {val_metrics['loss']:.4f} | "
                 f"Val MAE: {val_metrics['MAE']:.4f}"
             )

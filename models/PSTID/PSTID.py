@@ -112,6 +112,87 @@ class MultiLayerPerceptron(nn.Module):
         return hidden
 
 
+class SpatialContrastiveLoss(nn.Module):
+    """空间对比损失（向量化实现）
+    
+    核心思想：
+    - 正样本对：相邻节点的空间嵌入应该相似（基于图邻接关系）
+    - 负样本对：不相邻节点的空间嵌入应该区分开
+    
+    Args:
+        temperature: 对比损失的温度参数（控制软硬程度）
+        loss_weight: 对比损失相对于 MSE 的权重
+    """
+    
+    def __init__(self, temperature: float = 0.1, loss_weight: float = 0.1):
+        super().__init__()
+        self.temperature = temperature
+        self.loss_weight = loss_weight
+    
+    def forward(self, 
+                adj_mx_emb: torch.Tensor,  # (N, D) 空间嵌入
+                adj_mx: torch.Tensor = None,       # (N, N) 邻接矩阵
+                batch_size: int = 1) -> torch.Tensor:
+        """
+        Args:
+            adj_mx_emb: 空间嵌入 (N, D)，来自 adj_mx_emb 参数
+            adj_mx: 邻接矩阵 (N, N)，用于定义正样本对
+            batch_size: batch 大小（用于扩展嵌入）
+            
+        Returns:
+            loss: 标量损失
+        """
+        N, D = adj_mx_emb.shape
+        
+        if adj_mx is None:
+            return torch.tensor(0.0, device=adj_mx_emb.device)
+        
+        device = adj_mx_emb.device
+        
+        # ===== 归一化嵌入 =====
+        emb = F.normalize(adj_mx_emb, p=2, dim=-1)  # (N, D)
+        
+        # ===== 计算相似度矩阵 =====
+        # (N, D) @ (D, N) -> (N, N)
+        sim_matrix = (emb @ emb.t()) / self.temperature  # (N, N)
+        
+        # ===== 构建正负样本对掩码 =====
+        adj = adj_mx.to(device).float()  # (N, N)
+        
+        # 正样本对：相邻节点（i, j）且 i != j
+        eye = torch.eye(N, device=device)
+        pos_mask = (adj > 0) & (eye == 0)  # (N, N) bool，相邻且非自身
+        neg_mask = (adj == 0) & (eye == 0)  # (N, N) bool，不相邻且非自身
+        
+        # ===== 向量化 InfoNCE 损失 =====
+        # 对每个节点 i，计算所有正样本的 logsumexp 和所有负样本的 logsumexp
+        # loss = -log(exp(pos_sim_i) / (exp(pos_sim_i) + sum(exp(neg_sim_i))))
+        #     = -pos_sim_i + log(exp(pos_sim_i) + sum(exp(neg_sim_i)))
+        #     = -pos_sim_i + logsumexp([pos_sim_i, neg_sim_i])
+        
+        # 将 pos_sim 设为非常小的值，使其在 logsumexp 中几乎不影响
+        sim_for_logsumexp = sim_matrix.clone()
+        sim_for_logsumexp[~pos_mask & ~neg_mask] = float('-inf')  # 非正非负的设为 -inf
+        
+        # 每个节点的正样本相似度（平均）
+        pos_sim = (sim_matrix * pos_mask.float()).sum(dim=-1) / (pos_mask.float().sum(dim=-1) + 1e-8)
+        
+        # logsumexp over 正样本和负样本
+        log_sum_exp = torch.logsumexp(sim_for_logsumexp, dim=-1)  # (N,)
+        
+        # 计算损失
+        loss = -pos_sim + log_sum_exp  # (N,)
+        
+        # 只考虑有正样本的节点
+        valid_mask = pos_mask.float().sum(dim=-1) > 0  # (N,)
+        loss = loss[valid_mask]
+        
+        if len(loss) == 0:
+            return torch.tensor(0.0, device=device)
+        
+        return self.loss_weight * loss.mean()
+
+
 class SpatialCodebook(nn.Module):
     """空间码本：编码静态/半静态节点身份
 
@@ -516,33 +597,6 @@ class ProtoModule(nn.Module):
 
             return result
 
-    def get_usage_uniformity_loss(self) -> torch.Tensor:
-        """原型使用均匀性损失"""
-        device = next(self.parameters()).device
-        loss = torch.tensor(0.0, device=device)
-
-        all_attentions = getattr(self, '_all_layer_attentions', None)
-        if all_attentions is None:
-            all_attentions = [getattr(self, '_last_proto_attentions', None)] if getattr(self, '_last_proto_attentions', None) is not None else []
-
-        for att in all_attentions:
-            if att is None:
-                continue
-            spatial_att = att.get('spatial', None)
-            if spatial_att is not None and self.use_spatio:
-                usage = spatial_att.mean(dim=[0, 1, 2])
-                expected = 1.0 / self.n_spatial
-                loss = loss + ((usage - expected) ** 2).sum()
-
-            temporal_att = att.get('temporal', None)
-            if temporal_att is not None and self.use_temporal:
-                usage = temporal_att.mean(dim=[0, 1, 2])
-                expected = 1.0 / self.n_temporal
-                loss = loss + ((usage - expected) ** 2).sum()
-
-        return loss
-
-
 class PSTID(BaseModel):
     """PSTID: 原型时空身份网络
 
@@ -565,11 +619,13 @@ class PSTID(BaseModel):
                  use_proto: bool = True,
                  use_spatio: bool = True,
                  use_temporal: bool = True,
-                 proto_uniformity_weight: float = 0.0,
                  # 新增参数
                  proto_emb_dim: int = None,
                  # adj_mx 衍生的可学习节点嵌入维度
                  adj_mx_emb_dim: int = 64,
+                 # 空间对比损失参数
+                 spatial_contrastive_weight: float = 0.1,
+                 spatial_contrastive_temperature: float = 0.1,
                  adj_mx: torch.Tensor = None):
         super().__init__()
 
@@ -603,7 +659,6 @@ class PSTID(BaseModel):
         self.num_spatial_prototypes = num_spatial_prototypes
         self.num_temporal_prototypes = num_temporal_prototypes
         self.proto_temperature = proto_temperature
-        self.proto_uniformity_weight = proto_uniformity_weight
 
         # ==================== STID 嵌入层 ====================
         # 空间嵌入
@@ -668,6 +723,19 @@ class PSTID(BaseModel):
             )
         else:
             self.proto_module = None
+
+        # ==================== 空间对比损失 ====================
+        self.use_spatial_contrastive = spatial_contrastive_weight > 0
+        self.spatial_contrastive_weight = spatial_contrastive_weight
+        if self.use_spatial_contrastive:
+            self.spatial_contrastive_loss = SpatialContrastiveLoss(
+                temperature=spatial_contrastive_temperature,
+                loss_weight=1.0  # 权重在外层应用
+            )
+            # 缓存邻接矩阵（用于对比损失）
+            self._cached_adj_mx = adj_mx.to(device) if adj_mx is not None else None
+        else:
+            self.spatial_contrastive_loss = None
 
         # ==================== MLP Layers ====================
         self.encoder = nn.Sequential(
@@ -886,6 +954,9 @@ class PSTID(BaseModel):
         
         # 1. 获取原始嵌入
         input_data = batch['X']  # (B, T, N, 3)
+        batch_size = input_data.shape[0]
+        self._last_batch_size = batch_size  # 缓存 batch_size 供对比损失使用
+        
         _, time_series_emb, tid_emb, diw_emb, spatio_emb = self._get_embeddings(batch)
         # time_series_emb: (B, T, N, D_time_series)
         # tid_emb: (B, T, N, D_tid) 或 None
@@ -1000,6 +1071,38 @@ class PSTID(BaseModel):
         
         return weight * loss
 
+    def compute_contrastive_loss(self, batch_size: int = None) -> torch.Tensor:
+        """空间对比损失：相邻节点的空间嵌入应该相似
+        
+        基于 InfoNCE 的对比学习损失，鼓励图上相邻的节点具有相似的嵌入表示。
+        
+        Args:
+            batch_size: batch 大小，如果为 None 则尝试从缓存获取
+            
+        Returns:
+            contrastive_loss: 标量损失
+        """
+        if not self.use_spatial_contrastive or self.spatial_contrastive_loss is None:
+            return torch.tensor(0.0, device=self.adj_mx_emb.device)
+        
+        adj_mx = getattr(self, '_cached_adj_mx', None)
+        if adj_mx is None:
+            return torch.tensor(0.0, device=self.adj_mx_emb.device)
+        
+        # 获取 batch_size
+        if batch_size is None:
+            batch_size = getattr(self, '_last_batch_size', 1)
+        
+        # 计算对比损失
+        loss = self.spatial_contrastive_loss(
+            adj_mx_emb=self.adj_mx_emb,
+            adj_mx=adj_mx,
+            batch_size=batch_size,
+        )
+        
+        # 应用权重
+        return self.spatial_contrastive_weight * loss
+
     def get_proto_usage_summary(self, decimals: int = 2) -> str:
         """生成原型使用情况摘要
 
@@ -1080,7 +1183,6 @@ class PSTID(BaseModel):
             use_proto=_get_arg(args, 'use_proto', True),
             use_spatio=_get_arg(args, 'use_spatio', True),
             use_temporal=_get_arg(args, 'use_temporal', True),
-            proto_uniformity_weight=_get_arg(args, 'proto_uniformity_weight', 0.0),
             # 新增参数
             proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
             # adj_mx 衍生的可学习节点嵌入维度

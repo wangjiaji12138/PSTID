@@ -271,7 +271,10 @@ class GWNET(BaseModel):
 
     def forward(self, batch):
         inputs = batch['X']
+        # inputs shape: (B, T, N, C) -> (B, C, N, T) after transpose
         inputs = inputs.transpose(1, 3)
+        # 只使用第一个通道（时间序列值），忽略时间特征通道
+        inputs = inputs[:, 0:1, :, :]  # (B, 1, N, T)
         inputs = nn.functional.pad(inputs, (1, 0, 0, 0))
 
         in_len = inputs.size(3)

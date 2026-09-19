@@ -307,8 +307,11 @@ def _build_pstid(args, num_nodes, adj_mx, device):
         use_proto=_get_arg(args, 'use_proto', True),
         use_spatio=_get_arg(args, 'use_spatio', True),
         use_temporal=_get_arg(args, 'use_temporal', True),
-        proto_uniformity_weight=_get_arg(args, 'proto_uniformity_weight', 0.0),
         proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
+        adj_mx_emb_dim=_get_arg(args, 'adj_mx_emb_dim', 64),
+        spatial_contrastive_weight=_get_arg(args, 'spatial_contrastive_weight', 0.1),
+        spatial_contrastive_temperature=_get_arg(args, 'spatial_contrastive_temperature', 0.1),
+        adj_mx=adj_mx,
     ).to(device)
 
 
