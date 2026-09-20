@@ -105,7 +105,7 @@ def create_parser():
     parser.add_argument('--proto_emb_dim', type=int, default=64)
     parser.add_argument('--adj_mx_emb_dim', type=int, default=64)
     parser.add_argument('--spatial_contrastive_weight', type=float, default=0.1)
-    parser.add_argument('--spatial_contrastive_temperature', type=float, default=1.0)
+    parser.add_argument('--spatial_contrastive_temperature', type=float, default=0.5)
     parser.add_argument('--tid', type=int, default=16)
     parser.add_argument('--diw', type=int, default=16)
     parser.add_argument('--time_intervals', type=int, default=1800)
@@ -120,7 +120,7 @@ def create_parser():
     parser.add_argument('--num_temporal_prototypes', type=int, default=8)
 
     # 5b) Prototype temperature
-    parser.add_argument('--proto_temperature', type=float, default=1.0)
+    parser.add_argument('--proto_temperature', type=float, default=0.5)
 
     # ============================================================
     # 6) Ablation switches (0=off, 1=on)
