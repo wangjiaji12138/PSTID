@@ -241,8 +241,10 @@ class SpatialCodebook(nn.Module):
             attention: (N, num_protos) 软分配权重
             proto_enhanced: (N, proto_emb_dim) 原型增强特征
         """
-        # 点积相似度（无归一化），用 temperature 控制 softmax 锐度
-        sim = proj_feat @ self.prototypes.t()  # (N, num_protos)
+        # 点积相似度：各自 L2 归一化后做内积，即余弦相似度
+        proj_norm = F.normalize(proj_feat, p=2, dim=-1)   # (N, D)
+        proto_norm = F.normalize(self.prototypes, p=2, dim=-1)  # (num_protos, D)
+        sim = proj_norm @ proto_norm.t()  # (N, num_protos)
 
         # 软分配（温度越大分布越均匀）
         soft_weights = F.softmax(sim / self.temperature, dim=-1)  # (N, num_protos)
