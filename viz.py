@@ -1106,7 +1106,7 @@ def collect_temporal_basis_weights(model, test_loader, scaler, device, args, dat
             temp = temporal_basis.temp.item()
 
             # 获取嵌入
-            _, _, time_in_day_emb, day_in_week_emb, _ = model._get_embeddings({'X': X})
+            _, _, time_in_day_emb, day_in_week_emb, _, _ = model._get_embeddings({'X': X})
             assert time_in_day_emb is not None, "collect_temporal_basis_weights: time_in_day_emb is None"
             assert day_in_week_emb is not None, "collect_temporal_basis_weights: day_in_week_emb is None"
 
@@ -1457,7 +1457,7 @@ def collect_and_visualize_embeddings(model, test_loader, scaler, device, args, d
     with torch.no_grad():
         for batch in test_loader:
             X = batch['X'].to(device)
-            _, _, time_in_day_emb, day_in_week_emb, _ = model._get_embeddings({'X': X})
+            _, _, time_in_day_emb, day_in_week_emb, _, _ = model._get_embeddings({'X': X})
 
             if has_tid:
                 assert time_in_day_emb is not None,                     "collect_and_visualize_embeddings: time_in_day_emb is None"

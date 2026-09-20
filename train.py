@@ -103,9 +103,8 @@ def create_parser():
     parser.add_argument('--input_embedding_dim', type=int, default=32)
     parser.add_argument('--node_emb_dim', type=int, default=16)
     parser.add_argument('--proto_emb_dim', type=int, default=64)
-    parser.add_argument('--adj_mx_emb_dim', type=int, default=64)
-    parser.add_argument('--spatial_contrastive_weight', type=float, default=0.0)
-    parser.add_argument('--spatial_contrastive_temperature', type=float, default=0.5)
+    parser.add_argument('--adj_mx_emb_dim', type=int, default=16)
+    parser.add_argument('--use_adj', type=int, default=1)
     parser.add_argument('--tid', type=int, default=16)
     parser.add_argument('--diw', type=int, default=16)
     parser.add_argument('--time_intervals', type=int, default=1800)
@@ -203,12 +202,8 @@ def normalize_input(X, scaler, input_dim=3):
 
 
 def train_epoch(model, dataloader, optimizer, criterion, device, scaler, 
-                clip_grad=None, model_name='PSTID', input_dim=3, scaler_amp=None, epoch=0,
-                contrastive_weight=0.0):
+                clip_grad=None, model_name='PSTID', input_dim=3, scaler_amp=None, epoch=0):
     """Train for one epoch with multi-channel support and optional mixed precision training.
-    
-    Args:
-        contrastive_weight: 空间对比损失权重（仅 PSTID 模型生效）
     """
     model.train()
 
@@ -216,7 +211,6 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     epoch_pred_loss = 0.0
     epoch_stssl_temporal_loss = 0.0
     epoch_stssl_spatial_loss = 0.0
-    epoch_contrastive_loss = 0.0
     n_batches = 0
 
     use_stssl = model_name in ['STSSL', 'STSSDL']
@@ -247,14 +241,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
 
                 pred_loss = criterion(y_pred_raw, y_target_raw)
                 epoch_pred_loss += pred_loss.detach().item()
-                
-                # PSTID: 空间对比损失（让相邻节点的嵌入更相似）
-                if use_pstid and contrastive_weight > 0:
-                    cont_loss = model.compute_contrastive_loss()
-                    epoch_contrastive_loss += cont_loss.detach().item()
-                    loss = pred_loss + cont_loss
-                else:
-                    loss = pred_loss
+                loss = pred_loss
 
         # 混合精度训练的 backward
         if scaler_amp is not None:
@@ -277,10 +264,8 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     avg_pred = epoch_pred_loss / n_batches if n_batches > 0 else 0.0
     avg_stssl_temporal = epoch_stssl_temporal_loss / n_batches if n_batches > 0 and use_stssl else 0.0
     avg_stssl_spatial = epoch_stssl_spatial_loss / n_batches if n_batches > 0 and use_stssl else 0.0
-    avg_contrastive = epoch_contrastive_loss / n_batches if n_batches > 0 else 0.0
     return {'loss': avg_loss, 'pred_loss': avg_pred,
-            'stssl_temporal_loss': avg_stssl_temporal, 'stssl_spatial_loss': avg_stssl_spatial,
-            'contrastive_loss': avg_contrastive}
+            'stssl_temporal_loss': avg_stssl_temporal, 'stssl_spatial_loss': avg_stssl_spatial}
 
 
 @torch.no_grad()
@@ -398,7 +383,6 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
             model, train_loader, optimizer, criterion, device, scaler, args.clip_grad, model_name,
             input_dim=args.input_dim, scaler_amp=scaler_amp,
             epoch=epoch,
-            contrastive_weight=args.spatial_contrastive_weight if model_name.upper() == 'PSTID' else 0.0,
         )
         val_metrics = evaluate(model, val_loader, criterion, device, scaler,
                               input_dim=args.input_dim, output_dim=args.output_dim,
@@ -510,6 +494,7 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
+    args.use_adj = bool(args.use_adj)
     # Convert int flags to bool
     args.use_proto = bool(args.use_proto)
     args.use_spatio = bool(args.use_spatio)

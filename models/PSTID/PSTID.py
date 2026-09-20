@@ -112,97 +112,6 @@ class MultiLayerPerceptron(nn.Module):
         return hidden
 
 
-class SpatialContrastiveLoss(nn.Module):
-    """空间对比损失（向量化实现）
-    
-    核心思想：
-    - 正样本对：相邻节点的空间嵌入应该相似（基于图邻接关系）
-    - 负样本对：不相邻节点的空间嵌入应该区分开
-    
-    Args:
-        temperature: 对比损失的温度参数（控制软硬程度）
-        loss_weight: 对比损失相对于 MSE 的权重
-    """
-    
-    def __init__(self, temperature: float = 0.1, loss_weight: float = 0.1):
-        super().__init__()
-        self.temperature = temperature
-        self.loss_weight = loss_weight
-    
-    def forward(self, 
-                adj_mx_emb: torch.Tensor,  # (N, D) 空间嵌入
-                adj_mx: torch.Tensor = None,       # (N, N) 邻接矩阵（有权重，全连接）
-                batch_size: int = 1) -> torch.Tensor:
-        """
-        加权对比损失：用 adj_mx 权重作为软正样本标签。
-
-        对于节点 i：
-          - p_ij ∝ exp(sim(i,j))   （嵌入相似度分布）
-          - q_ij ∝ adj_mx[i,j]     （邻接矩阵权重分布，归一化为概率）
-          - loss = KL(p || q) = sum_j p_ij * (log p_ij - log q_ij)
-
-        adj_mx 值越大（越相似）→ q_ij 越大 → 损失拉近嵌入相似度分布向邻接分布靠拢。
-
-        Args:
-            adj_mx_emb: 空间嵌入 (N, D)
-            adj_mx: 邻接矩阵 (N, N)，有权重全连接
-            batch_size: 未使用（保留接口兼容）
-
-        Returns:
-            loss: 标量损失
-        """
-        N, D = adj_mx_emb.shape
-
-        if adj_mx is None:
-            return torch.tensor(0.0, device=adj_mx_emb.device)
-
-        device = adj_mx_emb.device
-        adj = adj_mx.to(device).float()  # (N, N)
-
-        # ===== 归一化嵌入，计算余弦相似度矩阵 =====
-        emb = F.normalize(adj_mx_emb, p=2, dim=-1)  # (N, D)
-        sim_matrix = emb @ emb.t()                  # (N, N)，余弦相似度 ∈ [-1, 1]
-
-        # ===== 构建目标分布 q ∝ adj_mx =====
-        # 对角线置零（排除自相似）
-        adj_no_diag = adj.clone()
-        eye_N = torch.eye(N, device=device)
-        adj_no_diag = adj_no_diag.masked_fill(eye_N.bool(), 0.0)
-
-        # 行归一化为概率分布 q
-        q = adj_no_diag / (adj_no_diag.sum(dim=-1, keepdim=True) + 1e-8)  # (N, N)
-
-        # ===== 构建预测分布 p ∝ exp(sim / temperature) =====
-        logits = sim_matrix / self.temperature  # (N, N)
-        logits = logits.masked_fill(eye_N.bool(), float('-inf'))  # 排除对角线
-        p = F.softmax(logits, dim=-1)  # (N, N)
-
-        # ===== 加权 KL(p || q)，但只对有非零 q 的行计算 =====
-        # KL(p||q) = sum_j p_j * (log p_j - log q_j)
-        # 数值稳定版本
-        log_q = torch.log(q + 1e-12)
-
-        # 仅在 q 行和 > 0 的节点上计算损失
-        valid_rows = q.sum(dim=-1) > 0  # (N,)
-
-        # 对每个节点 i：loss_i = -sum_j q_ij * log(p_ij) + entropy(q_ij)
-        # 但我们只做 forward KL：sum_j p_ij * (log p_ij - log q_ij)
-        # 展开：sum_j p_ij * log p_ij - sum_j p_ij * log q_ij
-        #     = -H(p) - sum_j p_ij * log q_ij
-
-        # 只对有效行计算
-        p_valid = p[valid_rows]       # (N_valid, N)
-        q_valid = q[valid_rows]       # (N_valid, N)
-        log_q_valid = log_q[valid_rows]
-
-        # KL divergence per row: sum_j p * (log p - log q)
-        kl = (p_valid * (torch.log(p_valid + 1e-12) - log_q_valid)).sum(dim=-1)  # (N_valid,)
-
-        loss = kl.mean() if kl.numel() > 0 else torch.tensor(0.0, device=device)
-
-        return self.loss_weight * loss
-
-
 class SpatialCodebook(nn.Module):
     """空间码本：编码静态/半静态节点身份
 
@@ -216,7 +125,8 @@ class SpatialCodebook(nn.Module):
     """
 
     def __init__(self, num_protos: int, proto_emb_dim: int = None,
-                 adj_mx_emb_dim: int = None, time_series_dim: int = None,
+                 adj_mx_emb_dim: int = None, spatial_emb_dim: int = None,
+                 time_series_dim: int = None,
                  temperature: float = 2.0):
         super().__init__()
         self.num_protos = num_protos
@@ -227,8 +137,10 @@ class SpatialCodebook(nn.Module):
         self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
         nn.init.orthogonal_(self.prototypes)
 
-        # 统一投影层：拼接 (adj_mx_emb + time_series_mean) → proto_emb_dim
-        combined_dim = adj_mx_emb_dim + time_series_dim
+        # 统一投影层：拼接 (空间嵌入 + time_series_mean) → proto_emb_dim
+        # use_adj=True 时用 adj_mx_emb_dim，use_adj=False 时用 spatial_emb_dim
+        codebook_emb_dim = adj_mx_emb_dim if adj_mx_emb_dim is not None else spatial_emb_dim
+        combined_dim = codebook_emb_dim + time_series_dim
         self.proj = nn.Linear(combined_dim, proto_emb_dim)
     
     def _compute_attention(self, proj_feat: torch.Tensor) -> tuple:
@@ -254,12 +166,14 @@ class SpatialCodebook(nn.Module):
 
         return soft_weights, proto_enhanced
 
-    def forward(self, time_series_emb: torch.Tensor, adj_mx_emb: torch.Tensor = None) -> dict:
+    def forward(self, time_series_emb: torch.Tensor, adj_mx_emb: torch.Tensor = None,
+                node_emb: torch.Tensor = None) -> dict:
         """完整前向传播：投影 + 码本注意力
 
         Args:
             time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
             adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
+            node_emb: 节点可学习嵌入 (N, spatial_emb_dim)，当 use_adj=False 时使用
 
         Returns:
             dict with keys:
@@ -270,9 +184,10 @@ class SpatialCodebook(nn.Module):
         B, T, N, _ = time_series_emb.shape
 
         # ===== 静态 Query：所有样本共享 =====
-        # 使用时间序列均值 + adj_mx_emb 拼接后统一投影
+        # 空间嵌入优先使用 adj_mx_emb（包含图结构信息），否则回退到 node_emb
+        spatial_emb = adj_mx_emb if adj_mx_emb is not None else node_emb
         x_node_mean = time_series_emb.mean(dim=1).mean(dim=0)  # (N, D_time_series)
-        x_combined = torch.cat([adj_mx_emb, x_node_mean], dim=-1)  # (N, D_adj_mx + D_time_series)
+        x_combined = torch.cat([spatial_emb, x_node_mean], dim=-1)  # (N, D_spatial + D_time_series)
         proj_feat = self.proj(x_combined)  # (N, proto_emb_dim)
 
         attention_weights, proto_enhanced = self._compute_attention(proj_feat)
@@ -353,11 +268,16 @@ class TemporalBasis(nn.Module):
         ts_last = time_series_emb[:, -1, :, :]  # (B, N, D_ts)
 
         # ========== 2. 提取 tid_emb 和 diw_emb 的最后一个时间步 ==========
-        tid_last = tid_emb[:, -1, :, :]
-        diw_last = diw_emb[:, -1, :, :]
+        tid_last = tid_emb[:, -1, :, :] if tid_emb is not None else None
+        diw_last = diw_emb[:, -1, :, :] if diw_emb is not None else None
 
         # ========== 3. MLP 直接预测分配权重 ==========
-        x_alloc = torch.cat([ts_last, tid_last, diw_last], dim=-1)  # (B, N, in_dim)
+        x_list = [ts_last]
+        if tid_last is not None:
+            x_list.append(tid_last)
+        if diw_last is not None:
+            x_list.append(diw_last)
+        x_alloc = torch.cat(x_list, dim=-1)  # (B, N, in_dim)
         x_alloc_flat = x_alloc.reshape(B * N, -1)  # (B*N, in_dim)
         base_attn = self.allocator(x_alloc_flat)  # (B*N, num_protos)
         base_attn = F.softmax(base_attn / self.temp, dim=-1)  # 用温度控制锐度
@@ -391,13 +311,15 @@ class ProtoModule(nn.Module):
                  use_temporal: bool = True,
                  proto_temp: float = 0.5,
                  adj_mx_emb_dim: int = None,
+                 spatial_emb_dim: int = None,
                  time_series_dim: int = None,
                  time_of_day_size: int = None,
                  day_of_week_size: int = None,
                  temp_dim_tid: int = None,
                  temp_dim_diw: int = None,
                  proto_emb_dim: int = None,
-                 hidden_dim: int = None):
+                 hidden_dim: int = None,
+                 use_adj: bool = True):
         super().__init__()
 
         self.n_spatial, self.n_temporal = n_spatial, n_temporal
@@ -405,7 +327,9 @@ class ProtoModule(nn.Module):
         self.use_temporal = use_temporal
         self.proto_dim = proto_dim
         self.adj_mx_emb_dim = adj_mx_emb_dim
+        self.spatial_emb_dim = spatial_emb_dim
         self.proto_emb_dim = proto_emb_dim
+        self.use_adj = use_adj
 
         self.spatial_codebook = None
         self.temporal_basis = None
@@ -413,7 +337,8 @@ class ProtoModule(nn.Module):
         if use_spatio:
             self.spatial_codebook = SpatialCodebook(
                 n_spatial, proto_emb_dim=proto_emb_dim,
-                adj_mx_emb_dim=adj_mx_emb_dim,
+                adj_mx_emb_dim=adj_mx_emb_dim if use_adj else None,
+                spatial_emb_dim=spatial_emb_dim,
                 time_series_dim=time_series_dim,
                 temperature=proto_temp,
             )
@@ -434,18 +359,20 @@ class ProtoModule(nn.Module):
 
     def forward(self, time_series_emb: torch.Tensor,
                 adj_mx_emb: torch.Tensor = None,
+                node_emb: torch.Tensor = None,
                 tid_emb: torch.Tensor = None, diw_emb: torch.Tensor = None) -> tuple:
         """计算原型注意力融合（纯编排：调用码本 → 融合输出）
 
         Args:
             time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
-            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
+            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)，use_adj=True 时使用
+            node_emb: 节点可学习嵌入 (N, spatial_emb_dim)，use_adj=False 时使用
             tid_emb: 主模型的时间嵌入 (B, T, N, D_tid)
             diw_emb: 主模型的星期嵌入 (B, T, N, D_diw)
         """
-        # ---- 空间码本：使用 time_series_emb 和 adj_mx_emb ----
+        # ---- 空间码本：使用 time_series_emb 和空间嵌入（adj_mx_emb 或 node_emb）----
         if self.use_spatio:
-            spatial_out = self.spatial_codebook(time_series_emb, adj_mx_emb)
+            spatial_out = self.spatial_codebook(time_series_emb, adj_mx_emb, node_emb)
         else:
             spatial_out = None
 
@@ -516,13 +443,15 @@ class ProtoModule(nn.Module):
 
     def apply(self, time_series_emb: torch.Tensor,
               adj_mx_emb: torch.Tensor = None,
+              node_emb: torch.Tensor = None,
               tid_emb: torch.Tensor = None, diw_emb: torch.Tensor = None,
               collect_cache: bool = False) -> tuple:
         """应用原型模块增强嵌入
 
         Args:
             time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
-            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
+            adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)，use_adj=True 时使用
+            node_emb: 节点可学习嵌入 (N, spatial_emb_dim)，use_adj=False 时使用
             tid_emb: 主模型的时间嵌入 (B, T, N, D_tid)
             diw_emb: 主模型的星期嵌入 (B, T, N, D_diw)
             collect_cache: 是否收集可视化缓存数据
@@ -533,7 +462,7 @@ class ProtoModule(nn.Module):
         """
         # 调用 proto_module
         spatial_proto, temporal_proto, pa, _, codebook_proj_feats = self.forward(
-            time_series_emb, adj_mx_emb, tid_emb, diw_emb
+            time_series_emb, adj_mx_emb, node_emb, tid_emb, diw_emb
         )
 
         # 提取 proto_enhanced
@@ -636,11 +565,12 @@ class PSTID(BaseModel):
                  use_temporal: bool = True,
                  # 新增参数
                  proto_emb_dim: int = None,
+                 # 是否使用 adj_mx 衍生的可学习节点嵌入（消融开关）
+                 # True: 使用 adj_mx_emb 作为空间码本 Query，并拼入 hidden_dim
+                 # False: 使用 node_emb 作为空间码本 Query，不拼入 hidden_dim
+                 use_adj: bool = True,
                  # adj_mx 衍生的可学习节点嵌入维度
                  adj_mx_emb_dim: int = 64,
-                 # 空间对比损失参数
-                 spatial_contrastive_weight: float = 0.1,
-                 spatial_contrastive_temperature: float = 0.1,
                  adj_mx: torch.Tensor = None):
         super().__init__()
 
@@ -691,31 +621,37 @@ class PSTID(BaseModel):
         self.time_series_emb_layer = nn.Conv2d(in_channels=self.input_window, out_channels=self.time_series_emb_dim, kernel_size=(1, 1), bias=True)
 
 
+        self.use_adj = use_adj
         # ==================== 计算 hidden_dim ====================
         # STID 的 hidden_dim 是 time_series_emb + 所有启用的嵌入
+        # 当 use_adj=True 时，adj_mx_emb 也参与主嵌入的残差，因此 hidden_dim 必须包含 adj_mx_emb_dim
+        # 当 use_adj=False 时，不使用 adj_mx_emb，hidden_dim 不包含 adj_mx_emb_dim
         self.time_series_dim = self.time_series_emb_dim
-        self.hidden_dim = self.time_series_emb_dim + self.spatial_emb_dim + self.temp_dim_tid + self.temp_dim_diw
+        # 先把 adj_mx_emb_dim 绑定到 self 上，方便 hidden_dim 公式引用
+        self.adj_mx_emb_dim = adj_mx_emb_dim
+        self.hidden_dim = (self.time_series_emb_dim + self.spatial_emb_dim
+                           + self.temp_dim_tid + self.temp_dim_diw)
+        if self.use_adj:
+            self.hidden_dim += self.adj_mx_emb_dim
 
         # ProtoModule 的 proto_dim：如果提供了 proto_emb_dim 则使用它，否则使用 hidden_dim
         self.proto_emb_dim = proto_emb_dim if proto_emb_dim is not None else self.hidden_dim
         self.proto_dim = self.proto_emb_dim
-        
-        # adj_mx 衍生的可学习节点嵌入
-        self.adj_mx_emb_dim = adj_mx_emb_dim
-        if adj_mx is not None:
-            # 用 adj_mx 的谱嵌入（SVD）初始化
-            init_emb = _compute_adj_mx_emb_init(adj_mx, adj_mx_emb_dim).to(device)
-            # 如果 init_emb 的维度与目标不符，做线性插值
-            if init_emb.shape[1] < adj_mx_emb_dim:
-                # 填充随机噪声
-                padding = torch.randn(init_emb.shape[0], adj_mx_emb_dim - init_emb.shape[1], device=init_emb.device)
-                init_emb = torch.cat([init_emb, padding], dim=1)
-            elif init_emb.shape[1] > adj_mx_emb_dim:
-                init_emb = init_emb[:, :adj_mx_emb_dim]
-            self.adj_mx_emb = nn.Parameter(init_emb)
-        else:
-            self.adj_mx_emb = nn.Parameter(torch.empty(self.num_nodes, self.adj_mx_emb_dim))
-            nn.init.xavier_uniform_(self.adj_mx_emb)
+
+        # adj_mx 衍生的可学习节点嵌入（仅 use_adj=True 时创建）
+        self.adj_mx_emb = None
+        if self.use_adj:
+            if adj_mx is not None:
+                init_emb = _compute_adj_mx_emb_init(adj_mx, adj_mx_emb_dim).to(device)
+                if init_emb.shape[1] < adj_mx_emb_dim:
+                    padding = torch.randn(init_emb.shape[0], adj_mx_emb_dim - init_emb.shape[1], device=init_emb.device)
+                    init_emb = torch.cat([init_emb, padding], dim=1)
+                elif init_emb.shape[1] > adj_mx_emb_dim:
+                    init_emb = init_emb[:, :adj_mx_emb_dim]
+                self.adj_mx_emb = nn.Parameter(init_emb)
+            else:
+                self.adj_mx_emb = nn.Parameter(torch.empty(self.num_nodes, self.adj_mx_emb_dim))
+                nn.init.xavier_uniform_(self.adj_mx_emb)
 
         # ==================== ProtoModule ====================
         if self.use_proto:
@@ -728,6 +664,8 @@ class PSTID(BaseModel):
                 use_temporal=self.use_temporal,
                 proto_temp=self.proto_temperature,
                 adj_mx_emb_dim=self.adj_mx_emb_dim,
+                spatial_emb_dim=self.spatial_emb_dim,
+                use_adj=self.use_adj,
                 time_series_dim=self.time_series_emb_dim,
                 time_of_day_size=self.time_of_day_size,
                 day_of_week_size=self.day_of_week_size,
@@ -738,19 +676,6 @@ class PSTID(BaseModel):
             )
         else:
             self.proto_module = None
-
-        # ==================== 空间对比损失 ====================
-        self.use_spatial_contrastive = spatial_contrastive_weight > 0
-        self.spatial_contrastive_weight = spatial_contrastive_weight
-        if self.use_spatial_contrastive:
-            self.spatial_contrastive_loss = SpatialContrastiveLoss(
-                temperature=spatial_contrastive_temperature,
-                loss_weight=1.0  # 权重在外层应用
-            )
-            # 缓存邻接矩阵（用于对比损失）
-            self._cached_adj_mx = adj_mx.to(device) if adj_mx is not None else None
-        else:
-            self.spatial_contrastive_loss = None
 
         # ==================== MLP Layers ====================
         self.encoder = nn.Sequential(
@@ -776,6 +701,7 @@ class PSTID(BaseModel):
         """获取 STID 的嵌入表示 (B, T, N, hidden_dim)
 
         与 STID.forward() 中的嵌入逻辑一致，但扩展到所有 T 个时间步
+        adj_mx_emb 也参与主嵌入的残差（拼接到 hidden 中），由 ProtoModule 的空间码本同时使用
         """
         input_data = batch['X']
         batch_size, T, num_nodes, _ = input_data.shape
@@ -808,15 +734,20 @@ class PSTID(BaseModel):
         emb_list = [time_series_emb]
         emb_list.append(time_in_day_emb)
         emb_list.append(day_in_week_emb)
-        
+
         node_emb_4d = node_emb.unsqueeze(0).unsqueeze(1).expand(batch_size, T, -1, -1)  # (B, T, N, D)
         emb_list.append(node_emb_4d)
 
-        # (B, 2D, N, 1)
+        # adj_mx_emb 作为主嵌入的残差项参与拼接（仅 use_adj=True 时）
+        if self.use_adj and self.adj_mx_emb is not None:
+            adj_mx_emb_4d = self.adj_mx_emb.unsqueeze(0).unsqueeze(1).expand(batch_size, T, -1, -1)  # (B, T, N, D_adj)
+            emb_list.append(adj_mx_emb_4d)
+
+        # (B, T, N, hidden_dim)
         hidden = torch.cat(emb_list, dim=-1)
 
         # 返回拼接后的嵌入以及各分量（供原型模块使用）
-        return hidden, time_series_emb, time_in_day_emb, day_in_week_emb, node_emb
+        return hidden, time_series_emb, time_in_day_emb, day_in_week_emb, node_emb, self.adj_mx_emb
 
     def collect_visualization_data(self, layer_idx: int = 0) -> ProtoVisData:
         """收集可视化所需的原型数据，生成结构化的 ProtoVisData 对象
@@ -967,17 +898,18 @@ class PSTID(BaseModel):
                 'temporal_att': [],
             }
         
-        # 1. 获取原始嵌入
+        # 1. 获取原始嵌入（其中 adj_mx_emb 已作为静态结构信号拼入 hidden）
         input_data = batch['X']  # (B, T, N, 3)
         batch_size = input_data.shape[0]
         self._last_batch_size = batch_size  # 缓存 batch_size 供对比损失使用
         
-        _, time_series_emb, tid_emb, diw_emb, spatio_emb = self._get_embeddings(batch)
+        hidden, time_series_emb, tid_emb, diw_emb, spatio_emb, adj_mx_emb = self._get_embeddings(batch)
+        # hidden: (B, T, N, hidden_dim) 已拼接 time_series_emb + tid + diw + spatio + adj_mx_emb
         # time_series_emb: (B, T, N, D_time_series)
         # tid_emb: (B, T, N, D_tid) 或 None
         # diw_emb: (B, T, N, D_diw) 或 None
-        # spatio_emb: (N, D_spatio) 用于主模型的残差连接
-        # adj_mx_emb: (N, D_adj_mx) 用于 ProtoModule 的空间码本
+        # spatio_emb: (N, D_spatio)
+        # adj_mx_emb: (N, D_adj_mx)
 
         # 2. 保存时间信息（用于可视化对齐）- 传递给 ProtoModule
         if collect_cache:
@@ -1004,6 +936,7 @@ class PSTID(BaseModel):
             proto_enhanced, proto_info = self.proto_module.apply(
                 time_series_emb=time_series_emb,
                 adj_mx_emb=self.adj_mx_emb,
+                node_emb=spatio_emb,  # node_emb 用于 use_adj=False 时的空间码本
                 tid_emb=tid_emb,  # 直接传递主模型的时间嵌入
                 diw_emb=diw_emb,  # 直接传递主模型的星期嵌入
                 collect_cache=collect_cache,
@@ -1024,19 +957,8 @@ class PSTID(BaseModel):
             proto_enhanced = None
         
         # 3. 拼接所有嵌入和原型增强结果
-        # 扩展 spatio_emb 到 (B, T, N, D_spatio)
+        # hidden 已由 _get_embeddings 拼接完成，其中 adj_mx_emb 已作为静态结构信号拼入
         B, T, N, _ = time_series_emb.shape
-        spatio_emb_expanded = spatio_emb.unsqueeze(0).unsqueeze(0).expand(B, T, N, -1)
-        
-        # 拼接: time_series_emb + tid_emb + diw_emb + spatio_emb_expanded
-        emb_list = [time_series_emb]
-        if tid_emb is not None:
-            emb_list.append(tid_emb)
-        if diw_emb is not None:
-            emb_list.append(diw_emb)
-        emb_list.append(spatio_emb_expanded)
-        
-        hidden = torch.cat(emb_list, dim=-1)  # (B, T, N, hidden_dim)
 
         if proto_enhanced is not None:
             hidden = hidden + proto_enhanced
@@ -1051,38 +973,6 @@ class PSTID(BaseModel):
         prediction = self.regression_layer(hidden)[..., 0:1]
         
         return prediction
-
-    def compute_contrastive_loss(self, batch_size: int = None) -> torch.Tensor:
-        """空间对比损失：相邻节点的空间嵌入应该相似
-        
-        基于 InfoNCE 的对比学习损失，鼓励图上相邻的节点具有相似的嵌入表示。
-        
-        Args:
-            batch_size: batch 大小，如果为 None 则尝试从缓存获取
-            
-        Returns:
-            contrastive_loss: 标量损失
-        """
-        if not self.use_spatial_contrastive or self.spatial_contrastive_loss is None:
-            return torch.tensor(0.0, device=self.adj_mx_emb.device)
-        
-        adj_mx = getattr(self, '_cached_adj_mx', None)
-        if adj_mx is None:
-            return torch.tensor(0.0, device=self.adj_mx_emb.device)
-        
-        # 获取 batch_size
-        if batch_size is None:
-            batch_size = getattr(self, '_last_batch_size', 1)
-        
-        # 计算对比损失
-        loss = self.spatial_contrastive_loss(
-            adj_mx_emb=self.adj_mx_emb,
-            adj_mx=adj_mx,
-            batch_size=batch_size,
-        )
-        
-        # 应用权重
-        return self.spatial_contrastive_weight * loss
 
     def get_proto_usage_summary(self, decimals: int = 2) -> str:
         """生成原型使用情况摘要
