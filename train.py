@@ -253,6 +253,8 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
                     cont_loss = model.compute_contrastive_loss()
                     epoch_contrastive_loss += cont_loss.detach().item()
                     loss = pred_loss + cont_loss
+                else:
+                    loss = pred_loss
 
         # 混合精度训练的 backward
         if scaler_amp is not None:

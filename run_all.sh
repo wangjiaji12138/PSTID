@@ -24,6 +24,7 @@ MODELS=(
     "STSSDL"       # 2025, 自监督
 )
 
+M = "GWNet"
 # 数据集列表
 DATASETS=(
     "cq"
