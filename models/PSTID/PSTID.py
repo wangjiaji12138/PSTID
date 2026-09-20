@@ -131,66 +131,76 @@ class SpatialContrastiveLoss(nn.Module):
     
     def forward(self, 
                 adj_mx_emb: torch.Tensor,  # (N, D) 空间嵌入
-                adj_mx: torch.Tensor = None,       # (N, N) 邻接矩阵
+                adj_mx: torch.Tensor = None,       # (N, N) 邻接矩阵（有权重，全连接）
                 batch_size: int = 1) -> torch.Tensor:
         """
+        加权对比损失：用 adj_mx 权重作为软正样本标签。
+
+        对于节点 i：
+          - p_ij ∝ exp(sim(i,j))   （嵌入相似度分布）
+          - q_ij ∝ adj_mx[i,j]     （邻接矩阵权重分布，归一化为概率）
+          - loss = KL(p || q) = sum_j p_ij * (log p_ij - log q_ij)
+
+        adj_mx 值越大（越相似）→ q_ij 越大 → 损失拉近嵌入相似度分布向邻接分布靠拢。
+
         Args:
-            adj_mx_emb: 空间嵌入 (N, D)，来自 adj_mx_emb 参数
-            adj_mx: 邻接矩阵 (N, N)，用于定义正样本对
-            batch_size: batch 大小（用于扩展嵌入）
-            
+            adj_mx_emb: 空间嵌入 (N, D)
+            adj_mx: 邻接矩阵 (N, N)，有权重全连接
+            batch_size: 未使用（保留接口兼容）
+
         Returns:
             loss: 标量损失
         """
         N, D = adj_mx_emb.shape
-        
+
         if adj_mx is None:
             return torch.tensor(0.0, device=adj_mx_emb.device)
-        
+
         device = adj_mx_emb.device
-        
-        # ===== 归一化嵌入 =====
-        emb = F.normalize(adj_mx_emb, p=2, dim=-1)  # (N, D)
-        
-        # ===== 计算相似度矩阵 =====
-        # (N, D) @ (D, N) -> (N, N)
-        sim_matrix = (emb @ emb.t()) / self.temperature  # (N, N)
-        
-        # ===== 构建正负样本对掩码 =====
         adj = adj_mx.to(device).float()  # (N, N)
-        
-        # 正样本对：相邻节点（i, j）且 i != j
-        eye = torch.eye(N, device=device)
-        pos_mask = (adj > 0) & (eye == 0)  # (N, N) bool，相邻且非自身
-        neg_mask = (adj == 0) & (eye == 0)  # (N, N) bool，不相邻且非自身
-        
-        # ===== 向量化 InfoNCE 损失 =====
-        # 对每个节点 i，计算所有正样本的 logsumexp 和所有负样本的 logsumexp
-        # loss = -log(exp(pos_sim_i) / (exp(pos_sim_i) + sum(exp(neg_sim_i))))
-        #     = -pos_sim_i + log(exp(pos_sim_i) + sum(exp(neg_sim_i)))
-        #     = -pos_sim_i + logsumexp([pos_sim_i, neg_sim_i])
-        
-        # 将 pos_sim 设为非常小的值，使其在 logsumexp 中几乎不影响
-        sim_for_logsumexp = sim_matrix.clone()
-        sim_for_logsumexp[~pos_mask & ~neg_mask] = float('-inf')  # 非正非负的设为 -inf
-        
-        # 每个节点的正样本相似度（平均）
-        pos_sim = (sim_matrix * pos_mask.float()).sum(dim=-1) / (pos_mask.float().sum(dim=-1) + 1e-8)
-        
-        # logsumexp over 正样本和负样本
-        log_sum_exp = torch.logsumexp(sim_for_logsumexp, dim=-1)  # (N,)
-        
-        # 计算损失
-        loss = -pos_sim + log_sum_exp  # (N,)
-        
-        # 只考虑有正样本的节点
-        valid_mask = pos_mask.float().sum(dim=-1) > 0  # (N,)
-        loss = loss[valid_mask]
-        
-        if len(loss) == 0:
-            return torch.tensor(0.0, device=device)
-        
-        return self.loss_weight * loss.mean()
+
+        # ===== 归一化嵌入，计算余弦相似度矩阵 =====
+        emb = F.normalize(adj_mx_emb, p=2, dim=-1)  # (N, D)
+        sim_matrix = emb @ emb.t()                  # (N, N)，余弦相似度 ∈ [-1, 1]
+
+        # ===== 构建目标分布 q ∝ adj_mx =====
+        # 对角线置零（排除自相似）
+        adj_no_diag = adj.clone()
+        eye_N = torch.eye(N, device=device)
+        adj_no_diag = adj_no_diag.masked_fill(eye_N.bool(), 0.0)
+
+        # 行归一化为概率分布 q
+        q = adj_no_diag / (adj_no_diag.sum(dim=-1, keepdim=True) + 1e-8)  # (N, N)
+
+        # ===== 构建预测分布 p ∝ exp(sim / temperature) =====
+        logits = sim_matrix / self.temperature  # (N, N)
+        logits = logits.masked_fill(eye_N.bool(), float('-inf'))  # 排除对角线
+        p = F.softmax(logits, dim=-1)  # (N, N)
+
+        # ===== 加权 KL(p || q)，但只对有非零 q 的行计算 =====
+        # KL(p||q) = sum_j p_j * (log p_j - log q_j)
+        # 数值稳定版本
+        log_q = torch.log(q + 1e-12)
+
+        # 仅在 q 行和 > 0 的节点上计算损失
+        valid_rows = q.sum(dim=-1) > 0  # (N,)
+
+        # 对每个节点 i：loss_i = -sum_j q_ij * log(p_ij) + entropy(q_ij)
+        # 但我们只做 forward KL：sum_j p_ij * (log p_ij - log q_ij)
+        # 展开：sum_j p_ij * log p_ij - sum_j p_ij * log q_ij
+        #     = -H(p) - sum_j p_ij * log q_ij
+
+        # 只对有效行计算
+        p_valid = p[valid_rows]       # (N_valid, N)
+        q_valid = q[valid_rows]       # (N_valid, N)
+        log_q_valid = log_q[valid_rows]
+
+        # KL divergence per row: sum_j p * (log p - log q)
+        kl = (p_valid * (torch.log(p_valid + 1e-12) - log_q_valid)).sum(dim=-1)  # (N_valid,)
+
+        loss = kl.mean() if kl.numel() > 0 else torch.tensor(0.0, device=device)
+
+        return self.loss_weight * loss
 
 
 class SpatialCodebook(nn.Module):
@@ -207,7 +217,7 @@ class SpatialCodebook(nn.Module):
 
     def __init__(self, num_protos: int, proto_emb_dim: int = None,
                  adj_mx_emb_dim: int = None, time_series_dim: int = None,
-                 temperature: float = 0.5):
+                 temperature: float = 2.0):
         super().__init__()
         self.num_protos = num_protos
         self.proto_emb_dim = proto_emb_dim
@@ -1039,40 +1049,6 @@ class PSTID(BaseModel):
         prediction = self.regression_layer(hidden)[..., 0:1]
         
         return prediction
-
-    def compute_laplacian_loss(self, adj_mx: torch.Tensor = None, weight: float = 0.01) -> torch.Tensor:
-        """拉普拉斯正则化损失：相邻节点的 adj_mx_emb 应该相似
-        
-        L = I - D^{-1/2} A D^{-1/2}（对称归一化拉普拉斯）
-        loss = tr(emb^T L emb) / tr(emb^T emb)
-        
-        Args:
-            adj_mx: 邻接矩阵 (N, N)，如果为 None 则使用缓存的 self._cached_adj_mx
-            weight: 正则化权重
-        
-        Returns:
-            laplacian_loss: 标量损失
-        """
-        # 获取 adj_mx
-        if adj_mx is None:
-            adj_mx = getattr(self, '_cached_adj_mx', None)
-        if adj_mx is None:
-            return torch.tensor(0.0, device=self.adj_mx_emb.device)
-        
-        adj = adj_mx.to(self.adj_mx_emb.device)
-        emb = self.adj_mx_emb  # (N, D)
-        
-        # 计算度矩阵
-        d = adj.sum(dim=1, keepdim=True).clamp(min=1e-8)  # (N, 1)
-        D_inv_sqrt = torch.pow(d, -0.5)  # (N, 1)
-        
-        # 对称归一化拉普拉斯: L = I - D^{-1/2} A D^{-1/2}
-        L = torch.eye(adj.shape[0], device=adj.device) - D_inv_sqrt * adj * D_inv_sqrt.t()
-        
-        # 损失: tr(emb^T L emb) / tr(emb^T emb)
-        loss = torch.trace(emb.T @ L @ emb) / (emb.pow(2).sum() + 1e-8)
-        
-        return weight * loss
 
     def compute_contrastive_loss(self, batch_size: int = None) -> torch.Tensor:
         """空间对比损失：相邻节点的空间嵌入应该相似
