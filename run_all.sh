@@ -24,7 +24,8 @@ MODELS=(
     "STSSDL"       # 2025, 自监督
 )
 
-M = "GWNet"
+M=("GWNet")
+
 # 数据集列表
 DATASETS=(
     "cq"
@@ -40,7 +41,7 @@ DATASETS=(
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
-    for model in "${MODELS[@]}"; do
+    for model in "${M[@]}"; do
         echo "========================================"
         echo "Running: python train.py --data $data --model $model"
         echo "========================================"

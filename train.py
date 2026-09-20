@@ -104,7 +104,7 @@ def create_parser():
     parser.add_argument('--node_emb_dim', type=int, default=16)
     parser.add_argument('--proto_emb_dim', type=int, default=64)
     parser.add_argument('--adj_mx_emb_dim', type=int, default=64)
-    parser.add_argument('--spatial_contrastive_weight', type=float, default=0.1)
+    parser.add_argument('--spatial_contrastive_weight', type=float, default=0.0)
     parser.add_argument('--spatial_contrastive_temperature', type=float, default=0.5)
     parser.add_argument('--tid', type=int, default=16)
     parser.add_argument('--diw', type=int, default=16)

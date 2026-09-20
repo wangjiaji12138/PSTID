@@ -27,7 +27,7 @@ DATASETS=(
     "nyc_taxi"
 )
 
-GPU=0
+GPU=3
 EPOCHS=100
 
 # 验证模型名称
