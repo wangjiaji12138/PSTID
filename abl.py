@@ -2,14 +2,15 @@
 PSTID Ablation Analysis Script
 ==============================
 自动读取 results/ 目录下各数据集的 PSTID 消融实验结果，
-根据 config.json 中的 use_proto / use_spatio / use_temporal 标记
+根据 config.json 中的 use_proto / use_spatio / use_temporal / use_adj 标记
 自动识别实验类型，计算对比指标，并覆盖写入 abl_pstid.md。
 
-用户需要确保：每个数据集目录下恰好有 4 个 PSTID 实验，分别对应：
-  1. Full          (proto=T, spatio=T, temporal=T)
-  2. -Proto        (proto=F, spatio=T, temporal=T)
-  3. -Spatio       (proto=T, spatio=F, temporal=T)
-  4. -Temporal     (proto=T, spatio=T, temporal=F)
+用户需要确保：每个数据集目录下恰好有 5 个 PSTID 实验，分别对应：
+  1. Full          (proto=T, spatio=T, temporal=T, adj=T)
+  2. -Proto        (proto=F, spatio=T, temporal=T, adj=T)
+  3. -Spatio       (proto=T, spatio=F, temporal=T, adj=T)
+  4. -Temporal     (proto=T, spatio=T, temporal=F, adj=T)
+  5. -Adj          (proto=T, spatio=T, temporal=T, adj=F)
 """
 
 import json
@@ -25,7 +26,8 @@ ABL_LABELS = {
     "full":          "Full",
     "minus_proto":   "-Proto",
     "minus_spatio":  "-Spatio",
-    "minus_temporal": "-Temporal",
+    "minus_temporal":"-Temporal",
+    "minus_adj":     "-Adj",
 }
 
 # 指标列表
@@ -44,16 +46,20 @@ def identify_abl_type(config: dict) -> str | None:
     proto     = config.get("use_proto", True)
     spatio    = config.get("use_spatio", True)
     temporal  = config.get("use_temporal", True)
+    adj       = config.get("use_adj", True)
 
-    # 按优先级判断（Proto 影响最大，优先判断）
+    # 优先按最关键的 proto/spatio/temporal 消融来分类
     if not proto:
         return "minus_proto"
     if not spatio:
         return "minus_spatio"
     if not temporal:
         return "minus_temporal"
+    # proto/spatio/temporal 全启用，按 adj 区分
+    if not adj:
+        return "minus_adj"
     # 所有组件都启用 → Full
-    if proto and spatio and temporal:
+    if proto and spatio and temporal and adj:
         return "full"
     return None
 
@@ -114,8 +120,8 @@ def main():
         n = len(results)
         print(f"[{dataset}] 加载了 {n} 个实验: {list(results.keys())}")
 
-        # 检查是否恰好 4 个
-        expected = {"full", "minus_proto", "minus_spatio", "minus_temporal"}
+        # 检查是否恰好 5 个
+        expected = {"full", "minus_proto", "minus_spatio", "minus_temporal", "minus_adj"}
         found = set(results.keys())
         missing = expected - found
         if missing:
@@ -145,6 +151,7 @@ def main():
     lines.append("| -Proto | 关闭整个原型分支 | 原型模块的整体效果 |")
     lines.append("| -Spatio | 关闭空间码本 | 空间码本的作用 |")
     lines.append("| -Temporal | 关闭时间码本 | 时间码本的作用 |")
+    lines.append("| -Adj | 关闭 adj 矩阵衍生的空间嵌入 | 图结构信息的作用 |")
     lines.append("")
 
     lines.append("## 绝对指标对比\n")
@@ -204,12 +211,12 @@ def main():
     # ---- 3. 单组件贡献的加和性检验（ΔMAE）----
     lines.append("## 单组件贡献的加和性检验（ΔMAE）\n")
     lines.append(
-        "| 数据集 | ΔSpatio | ΔTemporal | S+T 简单加和 | ΔProto | "
-        "Proto/(S+T) 比值 |"
+        "| 数据集 | ΔSpatio | ΔTemporal | ΔAdj | S+T+A 简单加和 | ΔProto | "
+        "Proto/(S+T+A) 比值 |"
     )
     lines.append(
-        "|--------|--------:|----------:|------------:|-------:|"
-        "-----------------:|"
+        "|--------|--------:|----------:|------:|---------------:|-------:|"
+        "------------------:|"
     )
 
     for dataset in DATASETS:
@@ -217,23 +224,26 @@ def main():
         full = res.get("full", {}).get("metrics")
         minus_s = res.get("minus_spatio", {}).get("metrics")
         minus_t = res.get("minus_temporal", {}).get("metrics")
+        minus_a = res.get("minus_adj", {}).get("metrics")
         minus_p = res.get("minus_proto", {}).get("metrics")
 
-        if not all([full, minus_s, minus_t, minus_p]):
-            lines.append(f"| {dataset} | — | — | — | — | — |")
+        if not all([full, minus_s, minus_t, minus_a, minus_p]):
+            lines.append(f"| {dataset} | — | — | — | — | — | — |")
             continue
 
         d_s = minus_s["MAE"] - full["MAE"]
         d_t = minus_t["MAE"] - full["MAE"]
+        d_a = minus_a["MAE"] - full["MAE"]
         d_p = minus_p["MAE"] - full["MAE"]
-        s_t = d_s + d_t
-        ratio = d_p / s_t if s_t != 0 else 0.0
+        s_t_a = d_s + d_t + d_a
+        ratio = d_p / s_t_a if s_t_a != 0 else 0.0
 
         lines.append(
             f"| {dataset} "
             f"| {d_s:>+0.4f} "
             f"| {d_t:>+0.4f} "
-            f"| {s_t:>+0.4f} "
+            f"| {d_a:>+0.4f} "
+            f"| {s_t_a:>+0.4f} "
             f"| {d_p:>+0.4f} "
             f"| **{ratio:.2f}×** |"
         )
@@ -244,7 +254,8 @@ def main():
     lines.append("### 假设验证\n")
     lines.append("1. **原型模块整体效果**：通过比较 Full 与 -Proto 的性能差异，验证原型模块是否有效减少噪声")
     lines.append("2. **空间码本作用**：通过比较 Full 与 -Spatio 的性能差异，验证空间码本对节点嵌入的归类效果")
-    lines.append("3. **时间码本作用**：通过比较 Full 与 -Temporal 的性能差异，验证时间码本对时间嵌入的归类效果\n")
+    lines.append("3. **时间码本作用**：通过比较 Full 与 -Temporal 的性能差异，验证时间码本对时间嵌入的归类效果")
+    lines.append("4. **图结构信息作用**：通过比较 Full 与 -Adj 的性能差异，验证 adj 矩阵衍生的空间嵌入是否有效\n")
 
     lines.append("### 可解释性分析\n")
     lines.append("- 原型使用率分布（通过 `prototype_usage.png` 可视化）可展示码本模块如何将嵌入归类")
@@ -259,7 +270,7 @@ def main():
     lines.append("说明：\n")
     lines.append("- MAE/RMSE/MAPE/SMAPE 的正值表示消融后性能下降（变差）\n")
     lines.append("- R² 的负值表示消融后拟合质量变差\n")
-    lines.append("- Proto/(S+T) 比值 > 1 表示 Proto 关闭带来的损失大于 Spatio + Temporal 关闭的损失之和")
+    lines.append("- Proto/(S+T+A) 比值 > 1 表示 Proto 关闭带来的损失大于 Spatio + Temporal + Adj 关闭的损失之和")
 
     # ========== 写入文件 ==========
     content = "\n".join(lines)

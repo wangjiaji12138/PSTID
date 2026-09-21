@@ -37,16 +37,18 @@ DATASETS=(
     "chi_taxi"
 )
 
+DATASET=("chi_taxi")
+
 # 记录开始时间
 START_TIME=$(date +%s)
 
-for data in "${DATASETS[@]}"; do
-    for model in "${M[@]}"; do
+for data in "${DATASET[@]}"; do
+    for model in "${MODELS[@]}"; do
         echo "========================================"
         echo "Running: python train.py --data $data --model $model"
         echo "========================================"
         
-        python train.py --data "$data" --model "$model" --epoch 100 --gpu 2
+        python train.py --data "$data" --model "$model" --epoch 100 --gpu 4
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then

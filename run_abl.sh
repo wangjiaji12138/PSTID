@@ -14,6 +14,7 @@ ABL=(
     "use_proto"
     "use_spatio"
     "use_temporal"
+    "use_adj"
 )
 
 # 数据集列表
@@ -27,7 +28,7 @@ DATASETS=(
     "nyc_taxi"
 )
 
-GPU=3
+GPU=4
 EPOCHS=100
 
 # 验证模型名称
