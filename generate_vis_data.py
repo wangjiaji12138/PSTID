@@ -1,5 +1,10 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
+# 设置中文字体
+plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 
 np.random.seed(42)
 
@@ -63,3 +68,38 @@ print("\n前5行:")
 print(df.head())
 print("\n统计信息:")
 print(df.describe())
+
+# =============================================================================
+# 可视化: 历史值和未来值对比
+# =============================================================================
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+node_names = ['N1', 'N2', 'N3', 'N4', 'N5']
+
+# 左图: 历史值
+ax1 = axes[0]
+for i in range(n_nodes):
+    ax1.plot(t, df[f'N{i+1}历史值'], label=node_names[i], color=colors[i], linewidth=1.5, alpha=0.8)
+ax1.set_xlabel('Time Step', fontsize=11)
+ax1.set_ylabel('Value', fontsize=11)
+ax1.set_title('Historical Values (History)', fontsize=12, fontweight='bold')
+ax1.legend(loc='upper right', fontsize=9)
+ax1.grid(True, alpha=0.3)
+ax1.set_xlim(0, n_timesteps - 1)
+
+# 右图: 未来值
+ax2 = axes[1]
+for i in range(n_nodes):
+    ax2.plot(t_future, df[f'N{i+1}未来值'], label=node_names[i], color=colors[i], linewidth=1.5, alpha=0.8)
+ax2.set_xlabel('Time Step', fontsize=11)
+ax2.set_ylabel('Value', fontsize=11)
+ax2.set_title('Future Values (Forecast)', fontsize=12, fontweight='bold')
+ax2.legend(loc='upper right', fontsize=9)
+ax2.grid(True, alpha=0.3)
+ax2.set_xlim(0, n_timesteps - 1)
+
+plt.tight_layout()
+plt.savefig('/data3/wangjiaji/PSTID/可视化结果/历史值和未来值对比.png', dpi=150, bbox_inches='tight')
+plt.show()
+print("\n可视化已保存: 历史值和未来值对比.png")
