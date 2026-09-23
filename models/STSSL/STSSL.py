@@ -9,7 +9,6 @@ ST-SSL: 时空自监督学习
 from __future__ import annotations
 
 import math
-import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,6 +16,20 @@ import torch.nn.init as init
 import numpy as np
 
 from models.base import BaseModel
+
+
+def masked_mae_torch(preds, labels, mask_val=0.0, mask=None):
+    """计算 masked MAE"""
+    if mask is not None:
+        mask = (labels != mask_val).float()
+        preds = preds * mask
+        labels = labels * mask
+        return torch.sum(torch.abs(preds - labels)) / (torch.sum(mask) + 1e-9)
+    else:
+        mask = (labels != mask_val).float()
+        preds = preds * mask
+        labels = labels * mask
+        return torch.sum(torch.abs(preds - labels)) / (torch.sum(mask) + 1e-9)
 
 
 # =============================================================================
@@ -137,7 +150,7 @@ def aug_traffic(t_sim_mx, flow_data, percent=0.2):
     
     mask_prob = (1. - t_sim_perm.reshape(-1)).cpu().numpy()
     mask_prob /= mask_prob.sum()
-
+    
     x, y, z = np.meshgrid(range(B), range(T), range(N), indexing='ij')
     mask_list = np.random.choice(B * T * N, size=mask_num, p=mask_prob)
 
@@ -287,7 +300,7 @@ class STEncoder(nn.Module):
         self.tconv13 = TemporalConvLayer(Kt, c[1], c[2])
         self.ln1 = nn.LayerNorm([num_nodes, c[2]])
         self.dropout1 = nn.Dropout(droprate)
-
+        
         # Block 2
         c = blocks[1]
         self.tconv21 = TemporalConvLayer(Kt, c[0], c[1], "GLU")
@@ -582,7 +595,7 @@ class STSSL(BaseModel):
     """时空自监督学习模型
     
     数据流: 输入嵌入 -> 时空编码器 -> 预测分支/空间对比/时间对比
-    输入格式: (B, T, N, 3) - [时序值, 时刻(day-of-time), 星期(day-of-week)]
+    输入格式: (B, T, N, 3) - [时序值, 时刻, 星期]
     """
     
     model_name = "stssl"

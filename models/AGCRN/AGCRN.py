@@ -162,7 +162,7 @@ class AGCRN(BaseModel):
     def from_args(args, num_nodes, adj_mx, device):
         return AGCRN(
             num_nodes=num_nodes,
-            feature_dim=1,  # 固定为1，只使用时序值特征
+            feature_dim=args.feature_dim,  # 固定为1，只使用时序值特征
             hidden_dim=args.input_embedding_dim,
             output_dim=1,
             in_window=args.input_window,
@@ -174,7 +174,7 @@ class AGCRN(BaseModel):
         ).to(device)
 
     def forward(self, batch):
-        source = batch['X']
+        source = batch['X'][:, :, :, 0:1]
 
         init_state = self.encoder.init_hidden(source.shape[0])
         output, _ = self.encoder(source, init_state, self.node_embeddings)

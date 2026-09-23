@@ -111,7 +111,7 @@ def _build_agcrn(args, num_nodes, adj_mx, device):
     """Build AGCRN model."""
     return AGCRN(
         num_nodes=num_nodes,
-        feature_dim=3,
+        feature_dim=1,
         hidden_dim=_get_arg(args, 'input_embedding_dim', 64),
         output_dim=1,
         in_window=_get_arg(args, 'input_window', 24),
