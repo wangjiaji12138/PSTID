@@ -31,8 +31,7 @@ from utils.log_record import create_logger
 # 可视化（独立模块，可单独运行 viz.py 来加载 checkpoint 可视化）
 import viz as _viz
 
-
-MODEL_LIST = ["HA", "GRU", "STGCN", "AGCRN", "GWNET", "MEGACRN", "STNORM",
+MODEL_LIST = ["HA", "GRU", "STGCN", "AGCRN", "GWNET", "MEGACRN", "STNORM","HIMNET",
                "MTGNN", "STAEFORMER", "STDN", "STID", "PSTID", "DCRNN", "STSSL", "STSSDL", "PDFORMER"]
 
 def set_seed(seed: int = 42, deterministic: bool = True):

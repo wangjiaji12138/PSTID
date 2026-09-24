@@ -18,6 +18,7 @@ from models.PSTID.PSTID import PSTID
 from models.DCRNN.DCRNN import DCRNN
 from models.STSSL.STSSL import STSSL
 from models.STSSDL.STSSDL import STSSDL
+from models.HimNet.HimNet import HimNet
 from models.PDFormer.PDFormer import PDFormer
 from models.HA.HA import HA
 from models.GRU.GRU import GRU
@@ -25,7 +26,7 @@ from models.GRU.GRU import GRU
 
 MODEL_LIST = ["HA", "GRU", "STGCN", "AGCRN", "GWNET", "MEGACRN", "STNORM",
               "MTGNN", "STAEFORMER", "STDN", "STID", "PSTID", "DCRNN", "STSSL", "STSSDL",
-              "PDFORMER"]
+              "HIMNET", "PDFORMER"]
 
 
 def build_model(model_name: str, args, num_nodes: int, adj_mx: torch.Tensor, device: torch.device):
@@ -69,6 +70,8 @@ def build_model(model_name: str, args, num_nodes: int, adj_mx: torch.Tensor, dev
         return _build_stssl(args, num_nodes, adj_mx, device)
     elif model_name == "STSSDL":
         return _build_stssdl(args, num_nodes, adj_mx, device)
+    elif model_name == "HIMNET":
+        return _build_himnet(args, num_nodes, adj_mx, device)
     elif model_name == "PDFORMER":
         return _build_pdformer(args, num_nodes, adj_mx, device, pdformer_data=args.pdformer_data)
     elif model_name == "HA":
@@ -378,6 +381,30 @@ def _build_stssdl(args, num_nodes, adj_mx, device):
         adj_mx=adj_mx_np,
         device=device,
         time_intervals=_get_arg(args, 'time_intervals', 1800)
+    ).to(device)
+
+
+def _build_himnet(args, num_nodes, adj_mx, device):
+    """Build HimNet model."""
+    adj_mx_np = _adj_to_numpy(adj_mx)
+    return HimNet(
+        num_nodes=num_nodes,
+        input_dim=1,  # 固定为1，只使用时序值特征
+        output_dim=1,
+        out_steps=_get_arg(args, 'output_window', 12),
+        in_window=_get_arg(args, 'input_window', 12),
+        hidden_dim=_get_arg(args, 'input_embedding_dim', 64),
+        num_layers=_get_arg(args, 'num_layers', 1),
+        cheb_k=_get_arg(args, 'cheb_k', 2),
+        ycov_dim=2,
+        tod_embedding_dim=_get_arg(args, 'tod_embedding_dim', 8),
+        dow_embedding_dim=_get_arg(args, 'dow_embedding_dim', 8),
+        node_embedding_dim=_get_arg(args, 'node_embedding_dim', 16),
+        st_embedding_dim=_get_arg(args, 'st_embedding_dim', 16),
+        tf_decay_steps=_get_arg(args, 'tf_decay_steps', 4000),
+        use_teacher_forcing=_get_arg(args, 'use_teacher_forcing', True),
+        adj_mx=adj_mx_np,
+        device=device,
     ).to(device)
 
 
