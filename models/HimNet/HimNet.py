@@ -212,14 +212,14 @@ class HimNet(BaseModel):
     def __init__(
         self,
         num_nodes: int,
-        input_dim: int = 1,  # 固定为1，只使用时序值特征
+        input_dim: int = 3,
         output_dim: int = 1,
         out_steps: int = 12,
         in_window: int = 12,
         hidden_dim: int = 64,
         num_layers: int = 1,
         cheb_k: int = 2,
-        ycov_dim: int = 2,  # 未来时刻的时间特征维度
+        ycov_dim: int = 2,
         tod_embedding_dim: int = 8,
         dow_embedding_dim: int = 8,
         node_embedding_dim: int = 16,
@@ -228,6 +228,7 @@ class HimNet(BaseModel):
         use_teacher_forcing: bool = True,
         adj_mx: np.ndarray = None,
         device: torch.device = None,
+        time_intervals: int = 1800,
     ):
         super().__init__()
 
@@ -245,7 +246,12 @@ class HimNet(BaseModel):
         self.tf_decay_steps = tf_decay_steps
         self.use_teacher_forcing = use_teacher_forcing
         self.device = device or torch.device('cpu')
-
+        self.time_intervals = time_intervals
+        
+        # 根据时间间隔计算 time_of_day_size
+        self.time_of_day_size = int((24 * 60 * 60) / time_intervals)
+        self.day_of_week_size = 7
+        
         # 空间编码器
         self.encoder_s = HimEncoder(
             num_nodes,
@@ -282,7 +288,7 @@ class HimNet(BaseModel):
         # 输出投影
         self.out_proj = nn.Linear(hidden_dim, output_dim)
 
-        # 时间嵌入
+        # 时间嵌入 - 使用 nn.Embedding 保持原始设计
         self.tod_embedding = nn.Embedding(288, tod_embedding_dim)
         self.dow_embedding = nn.Embedding(7, dow_embedding_dim)
         
@@ -323,31 +329,23 @@ class HimNet(BaseModel):
         
         B, T, N, _ = x.shape
         
-        # 提取时间特征
-        tod = x[:, -1, 0, 1]  # 使用最后一个时刻的 day-of-time
-        dow = x[:, -1, 0, 2]  # 使用最后一个时刻的 day-of-week
-        
-        # 限制时间特征在有效范围内
-        tod = torch.clamp(tod, 0.0, 0.9999)  # 限制在 [0, 1)
-        dow = torch.clamp(dow, 0.0, 0.9999)  # 限制在 [0, 1)
-        
-        tod_emb = self.tod_embedding((tod * 288).long())  # 映射到 [0, 287]
-        dow_emb = self.dow_embedding((dow * 7).long())  # 映射到 [0, 6]
-        time_embedding = torch.cat([tod_emb, dow_emb], dim=-1)
-
         # 构建节点相似度矩阵作为邻接矩阵
         support = torch.softmax(
             torch.relu(self.node_embedding @ self.node_embedding.T), dim=-1
         )
         support = support.to(x.device)
 
-        # 只使用时序值特征
-        x_val = x[..., 0:1]  # (B, T, N, 1)
+        # 提取时间特征用于时间编码器
+        tod = x[:, -1, 0, 1]  # 使用最后一个时刻的 day-of-time
+        dow = x[:, -1, 0, 2]  # 使用最后一个时刻的 day-of-week
+        tod_emb = self.tod_embedding((tod * 288).long())
+        dow_emb = self.dow_embedding(dow.long())
+        time_embedding = torch.cat([tod_emb, dow_emb], dim=-1)
 
         # 空间编码
-        h_s, _ = self.encoder_s(x_val, support, self.node_embedding)
+        h_s, _ = self.encoder_s(x, support, self.node_embedding)  # 使用完整输入
         # 时间编码
-        h_t, _ = self.encoder_t(x_val, support, time_embedding)
+        h_t, _ = self.encoder_t(x, support, time_embedding)  # 使用完整输入
         # 融合最后一层状态
         h_last = (h_s + h_t)[:, -1, :, :]  # (B, N, hidden_dim)
 
@@ -416,7 +414,7 @@ class HimNet(BaseModel):
         """从命令行参数创建模型实例"""
         return HimNet(
             num_nodes=num_nodes,
-            input_dim=1,  # 固定为1，只使用时序值特征
+            input_dim=3,
             output_dim=1,
             out_steps=args.output_window,
             in_window=args.input_window,

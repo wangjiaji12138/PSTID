@@ -389,12 +389,12 @@ def _build_himnet(args, num_nodes, adj_mx, device):
     adj_mx_np = _adj_to_numpy(adj_mx)
     return HimNet(
         num_nodes=num_nodes,
-        input_dim=1,  # 固定为1，只使用时序值特征
+        input_dim=3,
         output_dim=1,
-        out_steps=_get_arg(args, 'output_window', 12),
-        in_window=_get_arg(args, 'input_window', 12),
-        hidden_dim=_get_arg(args, 'input_embedding_dim', 64),
-        num_layers=_get_arg(args, 'num_layers', 1),
+        out_steps=_get_arg(args, 'output_window', 24),
+        in_window=_get_arg(args, 'input_window', 24),
+        hidden_dim=_get_arg(args, 'input_embedding_dim', 16),
+        num_layers=_get_arg(args, 'num_layers', 2),
         cheb_k=_get_arg(args, 'cheb_k', 2),
         ycov_dim=2,
         tod_embedding_dim=_get_arg(args, 'tod_embedding_dim', 8),
