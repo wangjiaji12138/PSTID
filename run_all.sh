@@ -6,7 +6,7 @@ MODELS=(
     "DCRNN"        # 2018, 图卷积开山作
     # 图学习（3个）
     "MTGNN"        # 2020, 自适应图
-    "AGCRN"        # 2020, 节点自适应
+    # "AGCRN"        # 2020, 节点自适应
     "GWNET"        # 2020, 自适应邻接矩阵
     # 动态图/解耦（1个）
     "STDN"         # 2025, 季节分解
@@ -20,6 +20,7 @@ MODELS=(
     # 对比学习（1个）
     "STSSL"
     "STSSDL"       # 2025, 自监督
+    "PSTID"
 )
 
 M=(
@@ -29,13 +30,14 @@ M=(
 
 # 数据集列表
 DATASETS=(
-    "cq"
-    "hz"
-    "jl"
     "sh"
-    "yt"
-    "nyc_taxi"
-    "chi_taxi"
+    # "cq"
+    # "hz"
+    # "jl"
+    # "sh"
+    # "yt"
+    # "nyc_taxi"
+    # "chi_taxi"
 )
 
 
@@ -43,7 +45,7 @@ DATASETS=(
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
-    for model in "${M[@]}"; do
+    for model in "${MODELS[@]}"; do
         echo "========================================"
         echo "Running: python train.py --data $data --model $model"
         echo "========================================"

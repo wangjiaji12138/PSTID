@@ -25,6 +25,16 @@ from geopy.distance import geodesic
 class DataProcessor:
     """数据处理器：生成训练所需的标准格式数据"""
 
+    # 各城市数据起始日期
+    CITY_START_DATES = {
+        'sh': pd.to_datetime('2022-06-01'),
+        'cq': pd.to_datetime('2022-05-01'),
+        'jl': pd.to_datetime('2022-05-01'),
+        'yt': pd.to_datetime('2022-05-01'),
+        'hz': pd.to_datetime('2022-05-01'),
+        'chi_taxi': pd.to_datetime('2022-05-01'),
+    }
+
     def __init__(self,
                  city: str = "sh",
                  grid_size: float = 0.05,
@@ -62,6 +72,7 @@ class DataProcessor:
         self.val_ratio = val_ratio
         self.input_window = input_window
         self.output_window = output_window
+        self.start_date = self.CITY_START_DATES.get(city.lower())
 
         # 路径设置
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -119,6 +130,11 @@ class DataProcessor:
             f'{self.day_start_hour:02d}:00:00',
             f'{self.day_end_hour:02d}:59:59'
         )
+
+        # 过滤起始日期之前的数据
+        if self.start_date is not None:
+            self.processed_data = self.processed_data[self.processed_data.index >= self.start_date]
+            print(f"Filtered data before {self.start_date}, remaining: {len(self.processed_data)} records")
 
     def _build_time_series(self):
         """构建完整时空矩阵"""
