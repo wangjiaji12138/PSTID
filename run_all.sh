@@ -24,20 +24,18 @@ MODELS=(
 )
 
 M=(
-    "MTGNN"
-    "STSSL"
+    "HimNet"
 )
 
 # 数据集列表
 DATASETS=(
-    "sh"
-    # "cq"
-    # "hz"
-    # "jl"
     # "sh"
-    # "yt"
-    # "nyc_taxi"
-    # "chi_taxi"
+    "cq"
+    "hz"
+    "jl"
+    "yt"
+    "nyc_taxi"
+    "chi_taxi"
 )
 
 
@@ -45,12 +43,12 @@ DATASETS=(
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
-    for model in "${MODELS[@]}"; do
+    for model in "${M[@]}"; do
         echo "========================================"
         echo "Running: python train.py --data $data --model $model"
         echo "========================================"
         
-        python train.py --data "$data" --model "$model" --epoch 100 --gpu 4
+        python train.py --data "$data" --model "$model" --epoch 100 --gpu 2
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then

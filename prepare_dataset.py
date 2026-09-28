@@ -5,16 +5,20 @@
 用法:
     python prepare_dataset.py NYC_TAXI
     python prepare_dataset.py CHI_TAXI
+    python prepare_dataset.py NYC_BIKE
     python prepare_dataset.py --all
 
 支持的数据集:
     - NYC_TAXI: 纽约出租车数据 (30分钟间隔)
     - CHI_TAXI: 芝加哥出租车数据 (30分钟间隔)
+    - NYC_BIKE: 纽约自行车数据 (30分钟间隔，默认取前365天)
 
 输入:
     data/raw/<dataset_name>/
         ├── <dataset_name>.npz      # 原始数据 (N, T, C) - 节点数, 时间步, 通道
         └── <dataset_name>_rn_adj.npy # 邻接矩阵 (N, N)
+
+    NYC_BIKE 原始数据为 (T, N, C)，加载时转为 (N, T, C)。
 
 输出:
     data/processed/<dataset_name_lower>/
@@ -46,6 +50,13 @@ DATASET_CONFIG = {
         'default_end': None,
         'raw_path': 'data/raw/CHI_TAXI',
     },
+    'NYC_BIKE': {
+        'time_interval': 1800,  # 30分钟，与 CHI_TAXI 一致
+        'default_start': None,
+        'default_end': None,
+        'default_days': 365,  # 与 CHI_TAXI 的17520个时间步一致
+        'raw_path': 'data/raw/NYC_BIKE',
+    },
 }
 
 
@@ -67,13 +78,16 @@ def load_raw_data(raw_dir: str, dataset_name: str):
     raw_data = data_dict['data']
     data = raw_data.astype(np.float32)
 
+    if dataset_name == 'NYC_BIKE':
+        data = data.transpose(1, 0, 2)
+
     print(f"加载数据: {data.shape}")
     print(f"  - 节点数 (N): {data.shape[0]}")
     print(f"  - 时间步 (T): {data.shape[1]}")
     print(f"  - 通道数 (C): {data.shape[2]}")
 
-    # CHI_TAXI 只取第一维特征（上车）
-    if dataset_name == 'CHI_TAXI':
+    # CHI_TAXI 和 NYC_BIKE 只取第一维流量特征
+    if dataset_name in ('CHI_TAXI', 'NYC_BIKE'):
         data = data[:, :, 0:1]
         print(f"  - 取第一维特征后: {data.shape}")
 
@@ -237,6 +251,10 @@ def process_dataset(dataset_name: str, args):
     data, adj = load_raw_data(raw_dir, dataset_name)
 
     print("\n[2/4] 按日期范围过滤...")
+    if config.get('default_days') and args.start_date is None and args.end_date is None:
+        default_steps = config['default_days'] * (24 * 60 * 60 // time_interval)
+        data = data[:, :default_steps, :]
+        print(f"默认使用前{config['default_days']}天 ({data.shape[1]}个时间步)")
     data, start_idx = filter_by_date_range(
         data,
         start_date=args.start_date or config['default_start'],

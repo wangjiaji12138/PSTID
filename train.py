@@ -67,7 +67,8 @@ def create_parser():
     # 1) Basic
     # ============================================================
     parser.add_argument('--seed', type=int, default=88)
-    parser.add_argument('--data', type=str, default='cq')
+    parser.add_argument('--data', type=str.lower, default='cq',
+                        help='数据集名称，如 cq、hz、sh、jl、yt、chi_taxi、nyc_taxi、nyc_bike（不区分大小写）')
     parser.add_argument('--data_dir', type=str, default='data/processed/')
     parser.add_argument('--pdformer_data_dir', type=str, default='data/processed/pdformer',
                         help='PDFormer 预处理数据目录（来自 preprocess_pdformer.py 输出）')
@@ -545,15 +546,16 @@ def main():
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() and args.device == 'cuda' else 'cpu')
     logger.info(f"Device: {device}")
 
-    # Check if data exists (support both split .npz files and unified all.npz)
+    # load_dataset 需要预处理生成的 all.npz 和 adj.pkl。
     import os
     data_path = os.path.join(args.data_dir, args.data)
-    # Try unified all.npz first, then split files
     all_file = os.path.join(data_path, 'all.npz')
-    train_file = os.path.join(data_path, 'train.npz')
-    if not os.path.exists(all_file) and not os.path.exists(train_file):
-        logger.error(f"Data not found: {data_path}")
-        logger.error(f"Expected 'all.npz' or 'train.npz', 'val.npz', 'test.npz' files")
+    adj_file = os.path.join(data_path, 'adj.pkl')
+    missing_files = [path for path in (all_file, adj_file) if not os.path.isfile(path)]
+    if missing_files:
+        logger.error(f"Missing dataset files: {', '.join(missing_files)}")
+        if args.data in ('nyc_taxi', 'chi_taxi', 'nyc_bike'):
+            logger.error(f"请先完成预处理: python prepare_dataset.py {args.data.upper()}")
         return None, None, None
     logger.info(f"Data path: {data_path}")
     # Load data
