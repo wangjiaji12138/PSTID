@@ -20,6 +20,7 @@ MODELS=(
     # 对比学习（1个）
     "STSSL"
     "STSSDL"       # 2025, 自监督
+    "HimNet"
     "PSTID"
 )
 
@@ -30,12 +31,13 @@ M=(
 # 数据集列表
 DATASETS=(
     # "sh"
-    "cq"
-    "hz"
-    "jl"
-    "yt"
-    "nyc_taxi"
-    "chi_taxi"
+    # "cq"
+    # "hz"
+    # "jl"
+    # "yt"
+    # "nyc_taxi"
+    # "chi_taxi"
+    "nyc_bike"
 )
 
 
@@ -43,12 +45,12 @@ DATASETS=(
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
-    for model in "${M[@]}"; do
+    for model in "${MODELS[@]}"; do
         echo "========================================"
         echo "Running: python train.py --data $data --model $model"
         echo "========================================"
         
-        python train.py --data "$data" --model "$model" --epoch 100 --gpu 2
+        python train.py --data "$data" --model "$model" --epoch 100 --gpu 4
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then
