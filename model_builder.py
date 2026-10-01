@@ -19,14 +19,13 @@ from models.DCRNN.DCRNN import DCRNN
 from models.STSSL.STSSL import STSSL
 from models.STSSDL.STSSDL import STSSDL
 from models.HimNet.HimNet import HimNet
-from models.PDFormer.PDFormer import PDFormer
 from models.HA.HA import HA
 from models.GRU.GRU import GRU
 
 
 MODEL_LIST = ["HA", "GRU", "STGCN", "AGCRN", "GWNET", "MEGACRN", "STNORM",
               "MTGNN", "STAEFORMER", "STDN", "STID", "PSTID", "DCRNN", "STSSL", "STSSDL",
-              "HIMNET", "PDFORMER"]
+              "HIMNET", ]
 
 
 def build_model(model_name: str, args, num_nodes: int, adj_mx: torch.Tensor, device: torch.device):
@@ -406,62 +405,6 @@ def _build_himnet(args, num_nodes, adj_mx, device):
         adj_mx=adj_mx_np,
         device=device,
     ).to(device)
-
-
-def _build_pdformer(args, num_nodes, adj_mx, device, pdformer_data=None):
-    """Build PDFormer model.
-    
-    Args:
-        args: Argument namespace from train.py
-        num_nodes: Number of nodes in the graph
-        adj_mx: Adjacency matrix
-        device: torch device
-        pdformer_data: dict with preprocessed PDFormer data:
-            - lap_mx: Laplacian PE matrix (N, lape_dim)
-            - pattern_keys: Pattern centroids (n_cluster, s_attn_size, 1)
-            - geo_mask: Geographic mask (N, N)
-            - sem_mask: Semantic mask (N, N)
-    
-    Returns:
-        PDFormer model
-    """
-    adj_mx_np = _adj_to_numpy(adj_mx)
-    
-    # Extract PDFormer-specific data
-    lap_mx = pdformer_data.get('lap_mx') if pdformer_data else None
-    pattern_keys = pdformer_data.get('pattern_keys') if pdformer_data else None
-    geo_mask = pdformer_data.get('geo_mask') if pdformer_data else None
-    sem_mask = pdformer_data.get('sem_mask') if pdformer_data else None
-    
-    return PDFormer(
-        num_nodes=num_nodes,
-        # In our pipeline, the last 2 input channels are time-in-day and day-of-week
-        # So the data feature dimension is input_dim - 2
-        feature_dim=max(1, _get_arg(args, 'input_dim', 3) - 2),
-        output_dim=_get_arg(args, 'output_dim', 1),
-        in_window=_get_arg(args, 'input_window', 24),
-        out_window=_get_arg(args, 'output_window', 24),
-        embed_dim=_get_arg(args, 'embed_dim', 64),
-        lape_dim=_get_arg(args, 'lape_dim', 8),
-        s_attn_size=_get_arg(args, 's_attn_size', 3),
-        t_attn_size=_get_arg(args, 't_attn_size', 1),
-        geo_num_heads=_get_arg(args, 'geo_num_heads', 4),
-        sem_num_heads=_get_arg(args, 'sem_num_heads', 2),
-        t_num_heads=_get_arg(args, 't_num_heads', 2),
-        enc_depth=_get_arg(args, 'enc_depth', 6),
-        mlp_ratio=_get_arg(args, 'mlp_ratio', 4),
-        qkv_bias=_get_arg(args, 'qkv_bias', True),
-        drop=_get_arg(args, 'dropout', 0.0),
-        attn_drop=_get_arg(args, 'attn_drop', 0.0),
-        drop_path=_get_arg(args, 'drop_path', 0.3),
-        adj_mx=adj_mx_np,
-        lap_mx=lap_mx,
-        pattern_keys=pattern_keys,
-        geo_mask=geo_mask,
-        sem_mask=sem_mask,
-        device=device,
-    ).to(device)
-
 
 def _build_ha(args, num_nodes, adj_mx, device):
     """Build HA (Historical Average) baseline model."""
