@@ -3,30 +3,21 @@
 # 模型列表
 MODELS=(
     "HA"
-    "DCRNN"        # 2018, 图卷积开山作
-    # 图学习（3个）
-    "MTGNN"        # 2020, 自适应图
-    # "AGCRN"        # 2020, 节点自适应
-    "GWNET"        # 2020, 自适应邻接矩阵
-    # 动态图/解耦（1个）
-    "STDN"         # 2025, 季节分解
-    # 注意力/Transformer（1个）
-    "STAEformer"   # 2023, 时空注意力
-    # 元学习/强基线（1个）
-    "MegaCRN"      # 2023, 元学习
-    # 简单高效（2个）
-    "STID"         # 2022, 纯 MLP
-    "STNorm"       # 2021, 归一化
-    # 对比学习（1个）
+    "DCRNN"
+    "AGCRN"
+    "MTGNN"
+    "GWNET"
+    "STDN"
+    "STAEformer" 
+    "MegaCRN"
+    "STID"
+    "STNorm"
     "STSSL"
-    "STSSDL"       # 2025, 自监督
+    "STSSDL"
     "HimNet"
     "PSTID"
 )
 
-M=(
-    "HimNet"
-)
 
 # 数据集列表
 DATASETS=(
