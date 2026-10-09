@@ -1,6 +1,6 @@
 """
 统一日志记录器
-支持：模型架构、参数配置、训练损失、原型使用率等
+支持：模型架构、参数配置、训练损失和评估指标等
 """
 
 import os
@@ -11,12 +11,6 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 import torch
 
-# 导入原型模块类用于架构打印
-try:
-    from models.PSTID.PSTID import SpatialCodebook, TemporalCodebook
-except ImportError:
-    SpatialCodebook = type('SpatialCodebook', (), {})
-    TemporalCodebook = type('TemporalCodebook', (), {})
 
 
 class Logger:
@@ -147,36 +141,6 @@ Proto transition weight: {getattr(args, 'proto_transition_weight', 'N/A')}"""
 
         self.info(" | ".join(msg_parts))
 
-    def log_proto_usage(self, model):
-        """记录原型使用率"""
-        if not getattr(model, 'use_proto', False):
-            return
-
-        use_spatio = getattr(model, 'use_spatio', False)
-        use_temporal = getattr(model, 'use_temporal', False)
-        usages = getattr(model, '_last_proto_usage', None)
-
-        if usages is None or len(usages) == 0:
-            return
-
-        self.section("Prototype Usage Rate")
-
-        for layer_idx, usage in enumerate(usages):
-            layer_lines = [f"  Layer {layer_idx}:"]
-
-            if use_spatio and 'spatial' in usage:
-                spatial_vals = usage['spatial']
-                spatial_str = ', '.join([f'{v:.3f}' for v in spatial_vals])
-                layer_lines.append(f"    Spatio: [{spatial_str}]")
-                layer_lines.append(f"    Spatio (norm): {spatial_vals}")
-
-            if use_temporal and 'temporal' in usage:
-                temporal_vals = usage['temporal']
-                temporal_str = ', '.join([f'{v:.3f}' for v in temporal_vals])
-                layer_lines.append(f"    Temporal: [{temporal_str}]")
-                layer_lines.append(f"    Temporal (norm): {temporal_vals}")
-
-            self.info('\n'.join(layer_lines))
 
     def log_test_results(self, test_metrics: Dict[str, float]):
         """记录测试结果"""
