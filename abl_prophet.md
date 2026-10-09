@@ -1,8 +1,8 @@
-# PSTID 消融实验结果
+# PROPHET 消融实验结果
 
 ## 创新点说明
 
-PSTID 在 STID 的基础上，通过原型模块增强输入嵌入：
+PROPHET 在 STID 的基础上，通过原型模块增强输入嵌入：
 - **核心思想**：STID 的 TID (Time-In-Day) 和 DIW (Day-In-Week) 嵌入以及空间节点嵌入可能产生噪声
 - **解决方案**：通过码本模块，将节点嵌入归类成几个空间码本信息，将时间嵌入归类成几个时间码本信息
 - **预期效果**：极大减少噪声并提升模型的可解释性
@@ -10,7 +10,7 @@ PSTID 在 STID 的基础上，通过原型模块增强输入嵌入：
 ## 实验设置
 
 - **数据集**：`chi_taxi`、`cq`、`hz`、`jl`、`nyc_taxi`、`sh`、`yt`
-- **模型**：PSTID
+- **模型**：PROPHET
 - **Baseline**：Full（启用 Proto + Spatio + Temporal 全部码本）
 
 ## 消融实验配置

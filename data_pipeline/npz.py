@@ -1,6 +1,6 @@
 """
 数据集处理脚本 - 支持多个数据集
-将原始NPZ格式数据转换为PSTID训练所需的格式
+将原始NPZ格式数据转换为PROPHET训练所需的格式
 
 用法:
     python prepare_dataset.py NYC_TAXI

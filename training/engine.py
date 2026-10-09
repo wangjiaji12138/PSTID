@@ -10,7 +10,7 @@ from .checkpoint import save_checkpoint
 
 
 def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
-                clip_grad=None, model_name='PSTID', input_dim=3, scaler_amp=None, epoch=0):
+                clip_grad=None, model_name='PROPHET', input_dim=3, scaler_amp=None, epoch=0):
     """Train for one epoch with multi-channel support and optional mixed precision training.
     """
     model.train()
@@ -22,7 +22,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
     n_batches = 0
 
     use_stssl = model_name in ['STSSL', 'STSSDL']
-    use_pstid = model_name.upper() == 'PSTID'
+    use_prophet = model_name.upper() == 'PROPHET'
 
     for batch in dataloader:
         X = batch['X'].to(device)
@@ -78,7 +78,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
 
 @torch.no_grad()
 def evaluate(model, dataloader, criterion, device, scaler,
-             input_dim=3, output_dim=1, model_name='PSTID'):
+             input_dim=3, output_dim=1, model_name='PROPHET'):
     """Evaluate model on validation/test set.
 
     For multi-channel output, predictions are averaged across channels.
@@ -182,11 +182,11 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
                 f"Val Loss: {val_metrics['loss']:.4f} | "
                 f"Val MAE: {val_metrics['MAE']:.4f}"
             )
-        elif model_name.upper() in ['PSTID', 'STID', 'STDN']:
+        elif model_name.upper() in ['PROPHET', 'STID', 'STDN']:
             # 主模型日志
             logger.info(f"Epoch {epoch+1}/{args.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
             cont_loss = train_metrics.get('contrastive_loss', 0.0)
-            cont_str = f" | ContLoss: {cont_loss:.6f}" if model_name.upper() == 'PSTID' and cont_loss > 0 else ""
+            cont_str = f" | ContLoss: {cont_loss:.6f}" if model_name.upper() == 'PROPHET' and cont_loss > 0 else ""
             logger.info(
                 f"Train Loss: {train_metrics['loss']:.4f} | "
                 f"{cont_str} | "

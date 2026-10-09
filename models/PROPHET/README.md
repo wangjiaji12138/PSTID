@@ -1,16 +1,16 @@
-# PSTID 模型组件
+# PROPHET 模型组件
 
 ## 阅读顺序
 
-1. `model.py`：`PSTID.__init__`、`_get_embeddings`、`forward`、`from_args`。
+1. `model.py`：`PROPHET.__init__`、`_get_embeddings`、`forward`、`from_args`。
 2. `prototype.py`：`ProtoModule` 如何调用空间和时间组件，并融合特征。
 3. `spatial.py` / `temporal.py`：两种原型分配算法。
 4. `graph.py` / `layers.py`：图初始化与残差 MLP。
 
-`PSTID.py` 仅负责旧路径兼容。模型内部使用相对导入，外部推荐：
+`PROPHET.py` 仅负责旧路径兼容。模型内部使用相对导入，外部推荐：
 
 ```python
-from models.PSTID.model import PSTID
+from models.PROPHET.model import PROPHET
 # 通过统一工厂构造实验模型：
 from models.registry import build_model
 ```
@@ -58,4 +58,4 @@ X: (B, T_in, N, 3)
 
 训练调用 `model({'X': X})`，只返回预测张量。原型融合直接调用 `ProtoModule.forward`，空间和时间组件只返回融合所需的增强特征与 Query 残差。模型不采集注意力统计、时间分组或嵌入缓存。
 
-扩展原型算法时优先修改对应码本组件；修改参数映射时只改 `PSTID.from_args`。若改变已注册参数名，应同时考虑旧 checkpoint 的加载和迁移。
+扩展原型算法时优先修改对应码本组件；修改参数映射时只改 `PROPHET.from_args`。若改变已注册参数名，应同时考虑旧 checkpoint 的加载和迁移。

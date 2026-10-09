@@ -1,5 +1,5 @@
 {
-  "description": "CPU float32 reference from original monolithic PSTID before module extraction; seed=42, torch=2.4.0. See model_kwargs and example_input in test_refactor.py.",
+  "description": "CPU float32 reference from original monolithic PROPHET before module extraction; seed=42, torch=2.4.0. See model_kwargs and example_input in test_refactor.py.",
   "cases": [
     {
       "flags": {},

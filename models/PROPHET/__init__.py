@@ -1,4 +1,4 @@
 """Prototype-based Spatio-Temporal Identity Network."""
-from .PSTID import PSTID
+from .PROPHET import PROPHET
 
-__all__ = ["PSTID"]
+__all__ = ["PROPHET"]

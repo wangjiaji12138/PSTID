@@ -76,7 +76,7 @@ def load_dataset(data_dir: str, dataset_name: str,
     return dataset
 
 
-class PSTIDDataset(Dataset):
+class PROPHETDataset(Dataset):
     """时空图预测数据集
 
     设计原则:

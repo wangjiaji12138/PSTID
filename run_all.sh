@@ -15,7 +15,7 @@ MODELS=(
     "STSSL"
     "STSSDL"
     "HimNet"
-    "PSTID"
+    "PROPHET"
 )
 
 

@@ -2,6 +2,6 @@
 
 from data_pipeline.dataset import (
     load_dataset,
-    PSTIDDataset,
+    PROPHETDataset,
     StandardScaler,
 )

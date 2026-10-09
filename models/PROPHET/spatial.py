@@ -1,4 +1,4 @@
-"""PSTID spatial components."""
+"""PROPHET spatial components."""
 
 import torch
 from torch import nn

@@ -7,7 +7,7 @@ from utils.paths import DATA_ROOT, RESULTS_ROOT
 
 def create_parser():
     """Create argument parser."""
-    parser = argparse.ArgumentParser(description='PSTID Training')
+    parser = argparse.ArgumentParser(description='PROPHET Training')
 
     # ============================================================
     # 1) Basic
@@ -16,7 +16,7 @@ def create_parser():
     parser.add_argument('--data', type=str.lower, default='cq',
                         help='数据集名称，如 cq、hz、sh、jl、yt、chi_taxi、nyc_taxi、nyc_bike（不区分大小写）')
     parser.add_argument('--data_dir', type=str, default=str(DATA_ROOT / 'processed'))
-    parser.add_argument('--model', type=str.upper, choices=MODEL_LIST, default='PSTID')
+    parser.add_argument('--model', type=str.upper, choices=MODEL_LIST, default='PROPHET')
 
     # ============================================================
     # 2) Training

@@ -1,4 +1,4 @@
-"""PSTID temporal components."""
+"""PROPHET temporal components."""
 
 import torch
 from torch import nn

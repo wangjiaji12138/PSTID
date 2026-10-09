@@ -16,7 +16,7 @@ import torch
 class Logger:
     """统一日志记录器"""
 
-    def __init__(self, log_dir: str, name: str = 'PSTID'):
+    def __init__(self, log_dir: str, name: str = 'PROPHET'):
         self.log_dir = log_dir
         self.name = name
         self.logger = self._setup_logger()
@@ -170,6 +170,6 @@ Proto transition weight: {getattr(args, 'proto_transition_weight', 'N/A')}"""
             }, f, indent=2)
 
 
-def create_logger(log_dir: str, name: str = 'PSTID') -> Logger:
+def create_logger(log_dir: str, name: str = 'PROPHET') -> Logger:
     """创建日志记录器"""
     return Logger(log_dir, name)

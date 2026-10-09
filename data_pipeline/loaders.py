@@ -4,14 +4,14 @@ import random
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from .dataset import PSTIDDataset
+from .dataset import PROPHETDataset
 
 
 def build_dataloaders(dataset, batch_size, seed, num_workers=0):
     """Build train/val/test dataloaders."""
-    train_dataset = PSTIDDataset(dataset, 'train')
-    val_dataset = PSTIDDataset(dataset, 'val')
-    test_dataset = PSTIDDataset(dataset, 'test')
+    train_dataset = PROPHETDataset(dataset, 'train')
+    val_dataset = PROPHETDataset(dataset, 'val')
+    test_dataset = PROPHETDataset(dataset, 'test')
 
     def seed_worker(worker_id):
         worker_seed = torch.initial_seed() % 2**32

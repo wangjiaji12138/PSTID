@@ -1,11 +1,11 @@
 """
-PSTID Ablation Analysis Script
+PROPHET Ablation Analysis Script
 ==============================
-自动读取 results/ 目录下各数据集的 PSTID 消融实验结果，
+自动读取 results/ 目录下各数据集的 PROPHET 消融实验结果，
 根据 config.json 中的 use_proto / use_spatio / use_temporal / use_adj 标记
-自动识别实验类型，计算对比指标，并覆盖写入 abl_pstid.md。
+自动识别实验类型，计算对比指标，并覆盖写入 abl_prophet.md。
 
-用户需要确保：每个数据集目录下恰好有 5 个 PSTID 实验，分别对应：
+用户需要确保：每个数据集目录下恰好有 5 个 PROPHET 实验，分别对应：
   1. Full          (proto=T, spatio=T, temporal=T, adj=T)
   2. -Proto        (proto=F, spatio=T, temporal=T, adj=T)
   3. -Spatio       (proto=T, spatio=F, temporal=T, adj=T)
@@ -20,7 +20,7 @@ from utils.paths import PROJECT_ROOT
 
 # ========== 配置 ==========
 RESULTS_ROOT = PROJECT_ROOT / "results"
-OUTPUT_MD = PROJECT_ROOT / "abl_pstid.md"
+OUTPUT_MD = PROJECT_ROOT / "abl_prophet.md"
 
 # 实验标记 → 人类可读名称
 ABL_LABELS = {
@@ -38,7 +38,7 @@ METRICS = ["MAE", "RMSE", "MAPE", "SMAPE", "R2"]
 DATASETS = ["chi_taxi", "cq", "hz", "jl", "nyc_taxi", "sh", "yt"]
 
 # 模型名称（用于识别实验目录）
-MODEL_NAME = "PSTID"
+MODEL_NAME = "PROPHET"
 
 # ========== 辅助函数 ==========
 
@@ -67,7 +67,7 @@ def identify_abl_type(config: dict) -> str | None:
 
 def load_results(dataset: str) -> dict[str, dict]:
     """
-    加载指定数据集下所有 PSTID 实验的结果。
+    加载指定数据集下所有 PROPHET 实验的结果。
     返回: {abl_type: {"config": ..., "metrics": ..., "exp_dir": ...}, ...}
     """
     base = RESULTS_ROOT / dataset
@@ -135,7 +135,7 @@ def main():
     lines = []
     lines.append(f"# {MODEL_NAME} 消融实验结果\n")
     lines.append("## 创新点说明\n")
-    lines.append("PSTID 在 STID 的基础上，通过原型模块增强输入嵌入：")
+    lines.append("PROPHET 在 STID 的基础上，通过原型模块增强输入嵌入：")
     lines.append("- **核心思想**：STID 的 TID (Time-In-Day) 和 DIW (Day-In-Week) 嵌入以及空间节点嵌入可能产生噪声")
     lines.append("- **解决方案**：通过码本模块，将节点嵌入归类成几个空间码本信息，将时间嵌入归类成几个时间码本信息")
     lines.append("- **预期效果**：极大减少噪声并提升模型的可解释性\n")

@@ -1,5 +1,5 @@
 """
-Base Model for PSTID Project
+Base Model for PROPHET Project
 """
 
 from abc import ABC, abstractmethod

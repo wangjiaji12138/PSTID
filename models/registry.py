@@ -211,10 +211,10 @@ def _build_stid(args, num_nodes, adj_mx, device):
     ).to(device)
 
 
-def _build_pstid(args, num_nodes, adj_mx, device):
-    """PSTID owns its argument mapping; keep the factory as a thin adapter."""
-    from .PSTID.model import PSTID
-    return PSTID.from_args(args, num_nodes, adj_mx, device).to(device)
+def _build_prophet(args, num_nodes, adj_mx, device):
+    """PROPHET owns its argument mapping; keep the factory as a thin adapter."""
+    from .PROPHET.model import PROPHET
+    return PROPHET.from_args(args, num_nodes, adj_mx, device).to(device)
 
 
 def _build_dcrnn(args, num_nodes, adj_mx, device):
@@ -351,7 +351,7 @@ MODEL_REGISTRY = {
     "STAEFORMER": _build_staeformer,
     "STDN": _build_stdn,
     "STID": _build_stid,
-    "PSTID": _build_pstid,
+    "PROPHET": _build_prophet,
     "DCRNN": _build_dcrnn,
     "STSSL": _build_stssl,
     "STSSDL": _build_stssdl,

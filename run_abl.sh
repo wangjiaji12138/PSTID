@@ -7,7 +7,8 @@
 #   bash run_abl.sh     
 # ============================================================
 
-MODEL=${1:-pstid}
+MODEL=${1:-prophet}
+MODEL=${MODEL,,}
 
 # 消融实验开关列表
 ABL=(
@@ -32,9 +33,9 @@ GPU=4
 EPOCHS=100
 
 # 验证模型名称
-if [[ "$MODEL" != "pstid" ]]; then
+if [[ "$MODEL" != "prophet" ]]; then
     echo "[ERROR] 未知模型: $MODEL"
-    echo "使用方法: bash run_abl.sh [pstid]"
+    echo "使用方法: bash run_abl.sh [prophet]"
     exit 1
 fi
 
@@ -86,8 +87,4 @@ echo "Total time: $((ELAPSED / 60)) minutes $((ELAPSED % 60)) seconds"
 echo "========================================"
 echo ""
 echo "运行以下命令分析结果:"
-if [[ "$MODEL" == "pstid" ]]; then
-    echo "  python abl_analysis_pstid.py"
-else
-    echo "  python abl_analysis.py"
-fi
+echo "  python -m experiments.ablation"

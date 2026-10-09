@@ -1,4 +1,4 @@
-"""PSTID model components."""
+"""PROPHET model components."""
 
 import torch
 from torch import nn
@@ -8,13 +8,13 @@ from .layers import MultiLayerPerceptron
 from .prototype import ProtoModule
 
 
-class PSTID(BaseModel):
-    """PSTID: 原型时空身份网络
+class PROPHET(BaseModel):
+    """PROPHET: 原型时空身份网络
 
     在 STID 的基础上，通过原型模块增强输入嵌入，减少噪声并提升可解释性。
     """
 
-    model_name = "pstid"
+    model_name = "prophet"
 
     def __init__(self, num_nodes: int, input_window: int = 24, output_window: int = 24,
                  feature_dim: int = 3, output_dim: int = 1,
@@ -239,7 +239,7 @@ class PSTID(BaseModel):
 
     @staticmethod
     def from_args(args, num_nodes, adj_mx, device):
-        """从命令行参数创建 PSTID 模型实例
+        """从命令行参数创建 PROPHET 模型实例
 
         Args:
             args: 命令行参数或参数字典
@@ -248,14 +248,14 @@ class PSTID(BaseModel):
             device: 计算设备
 
         Returns:
-            PSTID 模型实例
+            PROPHET 模型实例
         """
         def _get_arg(a, key, default):
             if isinstance(a, dict):
                 return a.get(key, default)
             return getattr(a, key, default)
 
-        return PSTID(
+        return PROPHET(
             num_nodes=num_nodes,
             input_window=_get_arg(args, 'input_window', 24),
             output_window=_get_arg(args, 'output_window', 24),

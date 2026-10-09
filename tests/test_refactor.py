@@ -19,7 +19,7 @@ from data_pipeline.dataset import StandardScaler, load_dataset
 from data_pipeline.normalization import normalize_input
 from data_pipeline.npz import create_sliding_windows
 from models.registry import build_model
-from models.PSTID.model import PSTID
+from models.PROPHET.model import PROPHET
 from training.config import create_parser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,11 +47,11 @@ class RefactorTests(unittest.TestCase):
         torch.set_num_threads(1)
 
     def test_pre_refactor_forecasts_and_gradients(self):
-        fixture = json.loads((ROOT / 'tests/fixtures/pstid_reference.json').read_text())
+        fixture = json.loads((ROOT / 'tests/fixtures/prophet_reference.json').read_text())
         for case in fixture['cases']:
             with self.subTest(flags=case['flags']):
                 torch.manual_seed(42)
-                model = PSTID(**model_kwargs(), **case['flags']).eval()
+                model = PROPHET(**model_kwargs(), **case['flags']).eval()
                 self.assertEqual(list(model.state_dict()), case['state_keys'])
                 output = model({'X': example_input()})
                 torch.testing.assert_close(output, torch.tensor(case['prediction']), atol=1e-6, rtol=1e-5)
@@ -60,7 +60,7 @@ class RefactorTests(unittest.TestCase):
                 torch.testing.assert_close(gradient.flatten(), torch.tensor(case['input_gradient']), atol=1e-6, rtol=1e-5)
 
     def test_forward_has_no_diagnostic_hooks_or_caches(self):
-        model = PSTID(**model_kwargs())
+        model = PROPHET(**model_kwargs())
         output = model({'X': example_input()})
         output.square().mean().backward()
         for name in ('collect_visualization_data', 'get_proto_usage_summary',
@@ -76,16 +76,16 @@ class RefactorTests(unittest.TestCase):
         self.assertIn(model.proto_module, visited)
 
     def test_legacy_import_order_and_factory_mapping(self):
-        importlib.import_module('models.PSTID.PSTID')
-        from models.PSTID import PSTID as package_class
-        from models.PSTID.PSTID import PSTID as legacy_class
-        self.assertIs(package_class, PSTID)
-        self.assertIs(legacy_class, PSTID)
-        args = create_parser().parse_args(['--model', 'pstid', '--use_adj', '0'])
+        importlib.import_module('models.PROPHET.PROPHET')
+        from models.PROPHET import PROPHET as package_class
+        from models.PROPHET.PROPHET import PROPHET as legacy_class
+        self.assertIs(package_class, PROPHET)
+        self.assertIs(legacy_class, PROPHET)
+        args = create_parser().parse_args(['--model', 'prophet', '--use_adj', '0'])
         torch.manual_seed(17)
         factory = build_model(args.model, args, 6, torch.eye(6), torch.device('cpu'))
         torch.manual_seed(17)
-        direct = PSTID.from_args(args, 6, torch.eye(6), torch.device('cpu'))
+        direct = PROPHET.from_args(args, 6, torch.eye(6), torch.device('cpu'))
         self.assertFalse(factory.use_adj)
         for name, parameter in factory.state_dict().items():
             torch.testing.assert_close(parameter, direct.state_dict()[name], rtol=0, atol=0)
@@ -138,7 +138,7 @@ assert 'models.STSSL.STSSL' not in sys.modules
             np.savez(ds / 'all.npz', X=x, y=y)
             with (ds / 'adj.pkl').open('wb') as stream:
                 pickle.dump(np.eye(6, dtype=np.float32), stream)
-            command = [sys.executable, str(ROOT / 'train.py'), '--model', 'pstid',
+            command = [sys.executable, str(ROOT / 'train.py'), '--model', 'prophet',
                        '--data', 'sample', '--data_dir', str(tmp / 'data'),
                        '--results_dir', str(tmp / 'results'), '--device', 'cpu',
                        '--epochs', '1', '--batch_size', '8', '--input_window', '4',
@@ -168,7 +168,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
             checkpoint = torch.load(checkpoints[0], map_location='cpu', weights_only=False)
             args = create_parser().parse_args([])
             vars(args).update(checkpoint['config'])
-            model = build_model('PSTID', args, 6, torch.eye(6), torch.device('cpu')).eval()
+            model = build_model('PROPHET', args, 6, torch.eye(6), torch.device('cpu')).eval()
             model.load_state_dict(checkpoint['model_state_dict'], strict=True)
             from data_pipeline.loaders import build_dataloaders
             from training.engine import evaluate

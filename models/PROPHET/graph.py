@@ -1,4 +1,4 @@
-"""PSTID graph components."""
+"""PROPHET graph components."""
 
 import torch
 import numpy as np

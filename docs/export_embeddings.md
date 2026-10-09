@@ -3,7 +3,7 @@
 在项目根目录运行（仅依赖 PyTorch 和 Python 标准库）：
 
 ```bash
-python get_emb.py --checkpoint results/cq/PSTID_20261005_183156/checkpoint/best_model.pth
+python get_emb.py --checkpoint results/cq/PROPHET_YYYYMMDD_HHMMSS/checkpoint/best_model.pth
 python get_emb.py --checkpoint /path/to/best_model.pth --output /path/to/embeddings.json
 ```
 

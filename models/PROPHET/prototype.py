@@ -1,4 +1,4 @@
-"""PSTID prototype components."""
+"""PROPHET prototype components."""
 
 import torch
 from torch import nn
@@ -64,7 +64,7 @@ class ProtoModule(nn.Module):
             )
 
         # ---- 输出投影层：proto_enhanced (proto_dim) -> hidden_dim ----
-        # hidden_dim 由 PSTID 传入，用于确保 proto_enhanced 与嵌入维度匹配
+        # hidden_dim 由 PROPHET 传入，用于确保 proto_enhanced 与嵌入维度匹配
         self.proto_out_proj = nn.Linear(proto_dim, hidden_dim)
 
     def forward(self, time_series_emb: torch.Tensor,

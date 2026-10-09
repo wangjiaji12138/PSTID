@@ -1,22 +1,22 @@
-# PSTID：原型时空身份网络
+# PROPHET：原型时空身份网络
 
 用于城市出行需求等时空数据预测。项目包含数据准备、模型训练、验证测试、checkpoint 保存和实验结果汇总。
 
 ## 目录与职责
 
 ```text
-PSTID/
+PROPHET/
 ├── models/
 │   ├── registry.py             # 唯一模型列表、按需导入、模型参数适配
 │   ├── base.py                 # 模型基类
-│   ├── PSTID/
+│   ├── PROPHET/
 │   │   ├── model.py            # 主网络、嵌入、前向传播、from_args
 │   │   ├── spatial.py          # 空间码本 SpatialCodebook
 │   │   ├── temporal.py         # 时间基 TemporalBasis
 │   │   ├── prototype.py        # 原型特征融合 ProtoModule
 │   │   ├── graph.py            # 邻接矩阵谱嵌入初始化
 │   │   ├── layers.py           # 残差 MLP
-│   │   └── PSTID.py            # 旧模型导入路径兼容层
+│   │   └── PROPHET.py            # 旧模型导入路径兼容层
 │   └── <baseline>/             # STID、GRU、AGCRN 等基线
 ├── data_pipeline/
 │   ├── dataset.py              # all.npz/adj.pkl 读取、Dataset、Scaler
@@ -38,7 +38,7 @@ PSTID/
 └── train.py 等                 # 旧训练、数据准备和分析命令兼容入口
 ```
 
-详细设计见 [架构与迁移说明](docs/architecture.md)；模型计算过程见 [PSTID 组件说明](models/PSTID/README.md)。
+详细设计见 [架构与迁移说明](docs/architecture.md)；模型计算过程见 [PROPHET 组件说明](models/PROPHET/README.md)。
 
 ## 使用
 
@@ -58,11 +58,11 @@ python -m data_pipeline.npz NYC_TAXI
 训练与消融：
 
 ```bash
-python -m training.runner --model PSTID --data cq --epochs 100 --gpu 0
-python -m training.runner --model PSTID --data cq --use_proto 0 --gpu 0
-python -m training.runner --model PSTID --data cq --use_spatio 0 --gpu 0
-python -m training.runner --model PSTID --data cq --use_temporal 0 --gpu 0
-python -m training.runner --model PSTID --data cq --use_adj 0 --gpu 0
+python -m training.runner --model PROPHET --data cq --epochs 100 --gpu 0
+python -m training.runner --model PROPHET --data cq --use_proto 0 --gpu 0
+python -m training.runner --model PROPHET --data cq --use_spatio 0 --gpu 0
+python -m training.runner --model PROPHET --data cq --use_temporal 0 --gpu 0
+python -m training.runner --model PROPHET --data cq --use_adj 0 --gpu 0
 python -m training.runner --model STID --data cq --gpu 0
 ```
 
@@ -85,9 +85,9 @@ python -m experiments.ablation
 
 三个输入通道依次为数值、归一化的日内时间、归一化的星期。默认按样本顺序划分训练/验证/测试集，比例为 `0.6/0.2/0.2`。Dataset 返回原始值，由归一化函数处理数值通道，时间特征保持原样。
 
-模型统一通过 `build_model(name, args, num_nodes, adj_mx, device)` 创建；PSTID 使用 `model({'X': X})`，返回 `(B, 预测窗口, N, 1)`。
+模型统一通过 `build_model(name, args, num_nodes, adj_mx, device)` 创建；PROPHET 使用 `model({'X': X})`，返回 `(B, 预测窗口, N, 1)`。
 
-当前支持：HA、GRU、STGCN、AGCRN、GWNET、MegaCRN、STNorm、MTGNN、STAEformer、STDN、STID、PSTID、DCRNN、STSSL、STSSDL、HimNet。名称不区分大小写；以 `models/registry.py` 为准。
+当前支持：HA、GRU、STGCN、AGCRN、GWNET、MegaCRN、STNorm、MTGNN、STAEformer、STDN、STID、PROPHET、DCRNN、STSSL、STSSDL、HimNet。名称不区分大小写；以 `models/registry.py` 为准。
 
 ## 验证
 
@@ -95,4 +95,4 @@ python -m experiments.ablation
 python -m unittest discover -s tests -v
 ```
 
-覆盖原始 PSTID 五种配置的输出、参数键与梯度基准，旧模型导入路径，数据窗口与归一化，前向无诊断缓存，以及禁止绘图库导入情况下的 CPU 短训练和 checkpoint 指标复现。测试使用临时目录，不写入真实数据集或实验结果。
+覆盖原始 PROPHET 五种配置的输出、参数键与梯度基准，旧模型导入路径，数据窗口与归一化，前向无诊断缓存，以及禁止绘图库导入情况下的 CPU 短训练和 checkpoint 指标复现。测试使用临时目录，不写入真实数据集或实验结果。

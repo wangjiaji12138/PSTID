@@ -1,4 +1,4 @@
-"""PSTID layers components."""
+"""PROPHET layers components."""
 
 import torch
 from torch import nn
