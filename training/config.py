@@ -12,9 +12,9 @@ def create_parser():
     # ============================================================
     # 1) Basic
     # ============================================================
-    parser.add_argument('--seed', type=int, default=88)
+    parser.add_argument('--seed', type=int, default=13)
     parser.add_argument('--data', type=str.lower, default='cq',
-                        help='数据集名称，如 cq、hz、sh、jl、yt、chi_taxi、nyc_taxi、nyc_bike（不区分大小写）')
+                        help='数据集名称，如 cq、hz、sh、jl、yt、chi_taxi、nyc_taxi')
     parser.add_argument('--data_dir', type=str, default=str(DATA_ROOT / 'processed'))
     parser.add_argument('--model', type=str.upper, choices=MODEL_LIST, default='PROPHET')
 

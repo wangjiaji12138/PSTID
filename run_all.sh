@@ -21,13 +21,13 @@ MODELS=(
 
 # 数据集列表
 DATASETS=(
-    # "sh"
-    # "cq"
-    # "hz"
-    # "jl"
-    # "yt"
-    # "nyc_taxi"
-    # "chi_taxi"
+    "sh"
+    "cq"
+    "hz"
+    "jl"
+    "yt"
+    "nyc_taxi"
+    "chi_taxi"
     "nyc_bike"
 )
 
