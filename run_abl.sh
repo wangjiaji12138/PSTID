@@ -12,16 +12,16 @@ MODEL=${MODEL,,}
 
 # 消融实验开关列表
 ABL=(
+    # "use_proto"
+    # "use_spatio"
+    # "use_temporal"
+    # "use_adj"
     "use_proto"
-    "use_spatio"
-    "use_temporal"
-    "use_adj"
-    "use_his"
 )
 
 # 数据集列表
 DATASETS=(
-    "cq"
+    # "cq"
     "hz"
     "jl"
     "sh"
@@ -47,18 +47,18 @@ MODEL_UPPER=$(echo "$MODEL" | tr '[:lower:]' '[:upper:]')
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
-    echo "========================================"
-    echo "Running: python train.py --data $data --model $MODEL_UPPER (Full)"
-    echo "========================================"
+    # echo "========================================"
+    # echo "Running: python train.py --data $data --model $MODEL_UPPER (Full)"
+    # echo "========================================"
 
-    python train.py --data $data --model $MODEL_UPPER --epochs $EPOCHS --gpu $GPU
-    FULL_EXIT=$?
+    # python train.py --data $data --model $MODEL_UPPER --epochs $EPOCHS --gpu $GPU
+    # FULL_EXIT=$?
 
-    if [ $FULL_EXIT -ne 0 ]; then
-        echo "[ERROR] Full model on $data failed with exit code $FULL_EXIT, skipping ablations"
-        continue
-    fi
-    echo "[SUCCESS] Full model on $data completed"
+    # if [ $FULL_EXIT -ne 0 ]; then
+    #     echo "[ERROR] Full model on $data failed with exit code $FULL_EXIT, skipping ablations"
+    #     continue
+    # fi
+    # echo "[SUCCESS] Full model on $data completed"
 
     for abl in "${ABL[@]}"; do
         echo "----------------------------------------"

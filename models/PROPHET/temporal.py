@@ -19,30 +19,38 @@ class TemporalBasis(nn.Module):
     def __init__(self, num_protos: int, proto_emb_dim: int = None, temp: float = 0.1,
                  time_series_dim: int = None, time_of_day_size: int = None, day_of_week_size: int = None,
                  temp_dim_tid: int = None, temp_dim_diw: int = None,
-                 use_his: bool = True):
+                 use_his: bool = True, use_proto: bool = True):
         super().__init__()
         self.num_protos = num_protos
         # 如果没有提供 proto_emb_dim，则使用 time_series_dim
         self.proto_emb_dim = proto_emb_dim if proto_emb_dim is not None else time_series_dim
         self.time_series_dim = time_series_dim
         self.use_his = use_his
+        self.use_proto = use_proto
         self.temp_dim_tid = temp_dim_tid or 0
         self.temp_dim_diw = temp_dim_diw or 0
-        self.temp = nn.Parameter(torch.tensor(temp))
-
-        # 原型参数（使用可配置的 proto_emb_dim）
-        self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
-        nn.init.xavier_normal_(self.prototypes)
+        if use_proto:
+            self.temp = nn.Parameter(torch.tensor(temp))
+            self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
+            nn.init.xavier_normal_(self.prototypes)
 
         # ========== MLP 分配器（替代点积注意力）==========
         # use_his=False 时，分配器和 Query 投影都只使用时间身份嵌入
         in_dim = (time_series_dim if use_his else 0) + (temp_dim_tid or 0) + (temp_dim_diw or 0)
 
-        self.allocator = nn.Sequential(
-            nn.Linear(in_dim, in_dim * 2),
-            nn.GELU(),
-            nn.Linear(in_dim * 2, num_protos),
-        )
+        if use_proto:
+            self.allocator = nn.Sequential(
+                nn.Linear(in_dim, in_dim * 2),
+                nn.GELU(),
+                nn.Linear(in_dim * 2, num_protos),
+            )
+        else:
+            # 原分配器输入先映射为分配权重，再映射回增强特征。
+            self.linear = nn.Sequential(
+                nn.Linear(in_dim, num_protos),
+                nn.Softmax(dim=-1),
+                nn.Linear(num_protos, self.proto_emb_dim),
+            )
 
         # ========== 投影网络（用于生成 proto_enhanced）==========
         self.proj = nn.Sequential(
@@ -77,14 +85,18 @@ class TemporalBasis(nn.Module):
             x_list.append(diw_last)
         x_alloc = torch.cat(x_list, dim=-1)  # (B, N, in_dim)
         x_alloc_flat = x_alloc.reshape(B * N, -1)  # (B*N, in_dim)
-        base_attn = self.allocator(x_alloc_flat)  # (B*N, num_protos)
-        base_attn = F.softmax(base_attn / self.temp, dim=-1)  # 用温度控制锐度
+        if self.use_proto:
+            base_attn = self.allocator(x_alloc_flat)  # (B*N, num_protos)
+            base_attn = F.softmax(base_attn / self.temp, dim=-1)  # 用温度控制锐度
 
         # ========== 4. 投影到 proto_emb_dim ==========
         proj_feat = self.proj(x_alloc_flat)  # (B*N, proto_emb_dim)
 
         # ========== 5. 加权求和得到原型增强特征 ==========
-        proto_enhanced_flat = base_attn @ self.prototypes  # (B*N, proto_emb_dim)
+        if self.use_proto:
+            proto_enhanced_flat = base_attn @ self.prototypes  # (B*N, proto_emb_dim)
+        else:
+            proto_enhanced_flat = self.linear(x_alloc_flat)
 
         # ========== 6. reshape 回 (B, T, N, dim) ==========
         proto_enhanced = proto_enhanced_flat.reshape(B, 1, N, -1).expand(B, T, N, -1)

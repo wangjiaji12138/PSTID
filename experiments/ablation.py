@@ -1,13 +1,13 @@
 """
 PROPHET Ablation Analysis Script
 ==============================
-自动读取 results/ 目录下各数据集的 PROPHET 消融实验结果，
+自动读取 results/ 目录下各数据集的 PROPHET（原名 PSTID）消融实验结果，
 根据 config.json 中的 use_proto / use_spatio / use_temporal / use_adj / use_his 标记
 自动识别实验类型，计算对比指标，并覆盖写入 abl_prophet.md。
 
 每个数据集的完整单项消融包含以下 6 种配置（未列出的开关均为 True）：
   1. Full          (proto=T, spatio=T, temporal=T, adj=T)
-  2. -Proto        (proto=F, spatio=T, temporal=T, adj=T)
+  2. Linear        (proto=F, spatio=T, temporal=T, adj=T；Linear→Softmax→Linear 替代原型分配)
   3. -Spatio       (proto=T, spatio=F, temporal=T, adj=T)
   4. -Temporal     (proto=T, spatio=T, temporal=F, adj=T)
   5. -Adj          (proto=T, spatio=T, temporal=T, adj=F)
@@ -26,7 +26,7 @@ OUTPUT_MD = PROJECT_ROOT / "abl_prophet.md"
 # 实验标记 → 人类可读名称
 ABL_LABELS = {
     "full":          "Full",
-    "minus_proto":   "-Proto",
+    "minus_proto":   "Linear-Softmax-Linear",
     "minus_spatio":  "-Spatio",
     "minus_temporal":"-Temporal",
     "minus_adj":     "-Adj",
@@ -39,8 +39,9 @@ METRICS = ["MAE", "RMSE", "MAPE", "SMAPE", "R2"]
 # 数据集列表（按需调整顺序）
 DATASETS = ["chi_taxi", "cq", "hz", "jl", "nyc_taxi", "sh", "yt"]
 
-# 模型名称（用于识别实验目录）
+# 报告使用当前名称；实验目录兼容更名前后的名称。
 MODEL_NAME = "PROPHET"
+MODEL_ALIASES = (MODEL_NAME, "PSTID")
 
 # ========== 辅助函数 ==========
 
@@ -72,14 +73,16 @@ def identify_abl_type(config: dict) -> str | None:
 
 def load_results(dataset: str) -> dict[str, dict]:
     """
-    加载指定数据集下所有 PROPHET 实验的结果。
+    加载指定数据集下所有 PROPHET / PSTID 实验的结果。
     返回: {abl_type: {"config": ..., "metrics": ..., "exp_dir": ...}, ...}
     """
     base = RESULTS_ROOT / dataset
     results = {}
 
-    for exp_dir in sorted(base.iterdir()):
-        if not exp_dir.is_dir() or not exp_dir.name.startswith(f"{MODEL_NAME}_"):
+    prefixes = tuple(f"{name}_" for name in MODEL_ALIASES)
+    # 按时间戳排序，同类消融保留最新结果，不受模型更名影响。
+    for exp_dir in sorted(base.iterdir(), key=lambda path: (path.name.partition("_")[2], path.name)):
+        if not exp_dir.is_dir() or not exp_dir.name.startswith(prefixes):
             continue
 
         config_path = exp_dir / "config.json"
@@ -90,6 +93,10 @@ def load_results(dataset: str) -> dict[str, dict]:
 
         with open(config_path) as f:
             config = json.load(f)
+        if not config.get("use_proto", True) and config.get("proto_ablation") != "linear_softmax_linear":
+            print(f"  [警告] {dataset}/{exp_dir.name} 是旧版 use_proto=0 实验（删除分支或单 Linear），"
+                  "不纳入 Linear-Softmax-Linear 对照，请重新训练 --use_proto 0")
+            continue
         with open(metrics_path) as f:
             metrics = json.load(f)
 
@@ -154,7 +161,7 @@ def main():
     lines.append("| 标记 | 含义 | 验证假设 |")
     lines.append("|------|------|---------|")
     lines.append("| Full | 全部组件启用 | 基准性能 |")
-    lines.append("| -Proto | 关闭整个原型分支 | 原型模块的整体效果 |")
+    lines.append("| Linear-Softmax-Linear | 输入先映射到原型数量维度，经 Softmax 后映射回特征维度，保留 Query 残差及融合 | 原型分配相对此映射结构的效果 |")
     lines.append("| -Spatio | 关闭空间码本 | 空间码本的作用 |")
     lines.append("| -Temporal | 关闭时间码本 | 时间码本的作用 |")
     lines.append("| -Adj | 关闭 adj 矩阵衍生的空间嵌入 | 图结构信息的作用 |")
@@ -215,11 +222,11 @@ def main():
 
     lines.append("")
 
-    # ---- 3. 单组件贡献的加和性检验（ΔMAE）----
-    lines.append("## 单组件贡献的加和性检验（ΔMAE）\n")
+    # ---- 3. 线性替换与单组件消融的变化对比（ΔMAE）----
+    lines.append("## 线性替换与单组件消融的变化对比（ΔMAE）\n")
     lines.append(
-        "| 数据集 | ΔSpatio | ΔTemporal | ΔAdj | S+T+A 简单加和 | ΔProto | "
-        "Proto/(S+T+A) 比值 |"
+        "| 数据集 | ΔSpatio | ΔTemporal | ΔAdj | S+T+A 简单加和 | ΔLinear | "
+        "Linear/(S+T+A) 比值 |"
     )
     lines.append(
         "|--------|--------:|----------:|------:|---------------:|-------:|"
@@ -259,7 +266,7 @@ def main():
     # ---- 4. 结论分析 ----
     lines.append("## 结论与分析\n")
     lines.append("### 假设验证\n")
-    lines.append("1. **原型模块整体效果**：通过比较 Full 与 -Proto 的性能差异，验证原型模块是否有效减少噪声")
+    lines.append("1. **原型分配效果**：通过比较 Full 与 Linear-Softmax-Linear 的性能差异，检验原型分配相对 Linear→Softmax→Linear 的收益")
     lines.append("2. **空间码本作用**：通过比较 Full 与 -Spatio 的性能差异，验证空间码本对节点嵌入的归类效果")
     lines.append("3. **时间码本作用**：通过比较 Full 与 -Temporal 的性能差异，验证时间码本对时间嵌入的归类效果")
     lines.append("4. **图结构信息作用**：通过比较 Full 与 -Adj 的性能差异，验证 adj 矩阵衍生的空间嵌入是否有效")
@@ -267,13 +274,14 @@ def main():
 
     lines.append("### 预期结果\n")
     lines.append("- **Full 应优于 STID**：原型模块应能减少原始嵌入中的噪声")
-    lines.append("- **Full 应优于 -Proto**：原型模块应带来显著的性能提升")
+    lines.append("- **Full 与 Linear-Softmax-Linear 对照**：由重新训练的指标判断两种分配结构的效果是否相同")
     lines.append("- **Spatio + Temporal 应接近 Full**：两个码本的联合效果应接近完整的原型模块\n")
 
     lines.append("说明：\n")
     lines.append("- MAE/RMSE/MAPE/SMAPE 的正值表示消融后性能下降（变差）\n")
     lines.append("- R² 的负值表示消融后拟合质量变差\n")
-    lines.append("- Proto/(S+T+A) 比值 > 1 表示 Proto 关闭带来的损失大于 Spatio + Temporal + Adj 关闭的损失之和")
+    lines.append("- Linear/(S+T+A) 仅作描述性比较：线性替换与关闭组件是不同操作，不能将此比值直接解释为贡献加和性")
+    lines.append("- 表中 Linear 指 Linear→Softmax→Linear，中间维度为对应原型数量；不保证参数量相等，旧版删除分支及单 Linear 的结果不纳入此对照")
 
     # ========== 写入文件 ==========
     content = "\n".join(lines)

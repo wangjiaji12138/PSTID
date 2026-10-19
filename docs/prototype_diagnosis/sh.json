@@ -1,0 +1,207 @@
+{
+  "experiment": "results/sh/PROPHET_20261019_140813",
+  "seed": 88,
+  "saved_test_metrics": {
+    "loss": 1.0071200132369995,
+    "MAE": 1.0071200132369995,
+    "RMSE": 2.321877956390381,
+    "MAPE": 50.41995620727539,
+    "R2": 0.9325109720230103,
+    "SMAPE": 51.76381301879883
+  },
+  "train_batches_for_surrogates": 16,
+  "test_samples": 786,
+  "batch_size": 64,
+  "reconstruction_max_error": 2.86102294921875e-06,
+  "notes": [
+    "CPU float32 inference; no checkpoint updates or retraining.",
+    "Affine fits use only evenly spaced training batches, float64 SVD least squares.",
+    "Mean replacement is per-node for spatial, global for temporal.",
+    "Spatial routing statistics count node-batch pairs; temporal counts sample-node pairs.",
+    "Frozen-weight interventions measure reliance, not retrained ablation performance."
+  ],
+  "branches": {
+    "spatial": {
+      "num_prototypes": 16,
+      "temperature": 0.5,
+      "normalized_entropy_mean": 0.9862698316574097,
+      "top1_probability_mean": 0.0999174565076828,
+      "mean_assignment": [
+        0.070454441010952,
+        0.0585889108479023,
+        0.06403978914022446,
+        0.04653485491871834,
+        0.073753722012043,
+        0.06517143547534943,
+        0.06353595852851868,
+        0.0498664416372776,
+        0.05049923062324524,
+        0.0650760754942894,
+        0.05176740139722824,
+        0.06106768921017647,
+        0.06379146128892899,
+        0.06417800486087799,
+        0.08031859248876572,
+        0.07135599851608276
+      ],
+      "assignment_std_mean": 0.013499518856406212,
+      "centered_logits_rms": 0.2852874994277954,
+      "prototype_pair_cosine_mean": 0.008076976984739304,
+      "prototype_rms": 0.03411348536610603,
+      "query_rms": 0.26587340235710144,
+      "centered_prototype_rms": 0.007563083432614803,
+      "centered_query_rms": 0.25576311349868774,
+      "projected_centered_prototype_rms": 0.00554552860558033,
+      "projected_centered_query_rms": 0.2177567183971405,
+      "affine_surrogate_test_r2": 0.7772142887115479,
+      "affine_surrogate_relative_rmse": 0.4720018313468909,
+      "uniform_softmax_taylor_r2": 0.955177903175354
+    },
+    "temporal": {
+      "num_prototypes": 8,
+      "temperature": 0.335505872964859,
+      "normalized_entropy_mean": 0.8747279047966003,
+      "top1_probability_mean": 0.29405707120895386,
+      "mean_assignment": [
+        0.14568722248077393,
+        0.1271900236606598,
+        0.10197298973798752,
+        0.1646314114332199,
+        0.16916562616825104,
+        0.10402613133192062,
+        0.1250845342874527,
+        0.0622420571744442
+      ],
+      "assignment_std_mean": 0.090260349214077,
+      "centered_logits_rms": 1.2711272239685059,
+      "prototype_pair_cosine_mean": 0.040689628571271896,
+      "prototype_rms": 0.08680029958486557,
+      "query_rms": 0.30657896399497986,
+      "centered_prototype_rms": 0.04730628430843353,
+      "centered_query_rms": 0.29442936182022095,
+      "projected_centered_prototype_rms": 0.03088832087814808,
+      "projected_centered_query_rms": 0.2446473091840744,
+      "affine_surrogate_test_r2": 0.690532922744751,
+      "affine_surrogate_relative_rmse": 0.5562976840749797,
+      "uniform_softmax_taylor_r2": -0.5079973936080933
+    }
+  },
+  "frozen_weight_interventions": {
+    "original": {
+      "MAE": 1.0071625709533691,
+      "RMSE": 2.3217921257019043,
+      "MAPE": 50.433712005615234,
+      "R2": 0.9325159788131714,
+      "SMAPE": 51.78181457519531,
+      "mean_abs_prediction_change": 0.0
+    },
+    "zero_spatial_prototype": {
+      "MAE": 1.0793715715408325,
+      "RMSE": 2.333695411682129,
+      "MAPE": 49.66941452026367,
+      "R2": 0.9318222403526306,
+      "SMAPE": 50.65325927734375,
+      "mean_abs_prediction_change": 0.1613616943359375
+    },
+    "zero_temporal_prototype": {
+      "MAE": 1.2419064044952393,
+      "RMSE": 2.3965799808502197,
+      "MAPE": 52.8897819519043,
+      "R2": 0.9280984997749329,
+      "SMAPE": 52.83989715576172,
+      "mean_abs_prediction_change": 0.450092613697052
+    },
+    "zero_both_prototypes": {
+      "MAE": 1.252535104751587,
+      "RMSE": 2.4037959575653076,
+      "MAPE": 52.16645431518555,
+      "R2": 0.9276648759841919,
+      "SMAPE": 52.600128173828125,
+      "mean_abs_prediction_change": 0.4738823473453522
+    },
+    "zero_both_queries": {
+      "MAE": 2.9598727226257324,
+      "RMSE": 4.750481605529785,
+      "MAPE": 76.01177978515625,
+      "R2": 0.7174928188323975,
+      "SMAPE": 57.26457214355469,
+      "mean_abs_prediction_change": 2.629531145095825
+    },
+    "mean_prototypes": {
+      "MAE": 1.0667427778244019,
+      "RMSE": 2.347461462020874,
+      "MAPE": 50.86380386352539,
+      "R2": 0.9310155510902405,
+      "SMAPE": 51.78386688232422,
+      "mean_abs_prediction_change": 0.202736958861351
+    },
+    "affine_spatial": {
+      "MAE": 1.0090504884719849,
+      "RMSE": 2.3213000297546387,
+      "MAPE": 50.14935302734375,
+      "R2": 0.9325445890426636,
+      "SMAPE": 51.35725784301758,
+      "mean_abs_prediction_change": 0.0231400765478611
+    },
+    "affine_temporal": {
+      "MAE": 1.0254639387130737,
+      "RMSE": 2.3274588584899902,
+      "MAPE": 50.50246047973633,
+      "R2": 0.9321861863136292,
+      "SMAPE": 51.66065216064453,
+      "mean_abs_prediction_change": 0.10611577332019806
+    },
+    "affine_both": {
+      "MAE": 1.0264167785644531,
+      "RMSE": 2.3270230293273926,
+      "MAPE": 50.21656036376953,
+      "R2": 0.9322115778923035,
+      "SMAPE": 51.244842529296875,
+      "mean_abs_prediction_change": 0.11036063730716705
+    },
+    "uniform_prototypes": {
+      "MAE": 1.0882309675216675,
+      "RMSE": 2.3542380332946777,
+      "MAPE": 50.16677474975586,
+      "R2": 0.9306166768074036,
+      "SMAPE": 51.102210998535156,
+      "mean_abs_prediction_change": 0.2377438247203827
+    }
+  },
+  "trained_linear_comparison": {
+    "experiment": "results/sh/PROPHET_20261019_140956",
+    "configuration_differences": {
+      "results_dir": [
+        "/data3/wangjiaji/PSTID/results/sh/PROPHET_20261019_140813",
+        "/data3/wangjiaji/PSTID/results/sh/PROPHET_20261019_140956"
+      ],
+      "log_dir": [
+        "/data3/wangjiaji/PSTID/results/sh/PROPHET_20261019_140813/log",
+        "/data3/wangjiaji/PSTID/results/sh/PROPHET_20261019_140956/log"
+      ],
+      "checkpoint_dir": [
+        "/data3/wangjiaji/PSTID/results/sh/PROPHET_20261019_140813/checkpoint",
+        "/data3/wangjiaji/PSTID/results/sh/PROPHET_20261019_140956/checkpoint"
+      ],
+      "proto_encoder_type": [
+        "prototype",
+        "linear_mlp"
+      ],
+      "use_proto": [
+        true,
+        false
+      ]
+    },
+    "test_metrics": {
+      "MAE": 1.0048521757125854,
+      "RMSE": 2.3193156719207764,
+      "MAPE": 50.33111572265625,
+      "R2": 0.9326598644256592,
+      "SMAPE": 51.43982696533203
+    },
+    "mean_abs_prediction_difference": 0.24242199957370758,
+    "prediction_correlation": 0.9981059432029724,
+    "prototype_model_parameters": 99953,
+    "linear_model_parameters": 104680
+  }
+}

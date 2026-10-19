@@ -68,7 +68,10 @@ def create_parser():
     # ============================================================
     # 6) Ablation switches (0=off, 1=on)
     # ============================================================
-    parser.add_argument('--use_proto', type=int, default=1)
+    parser.add_argument('--use_proto', type=int, choices=[0, 1], default=1,
+                        help='增强分支类型（0=Linear→Softmax→Linear，1=原型分配）')
+    # 区分旧版删除整个分支或单 Linear 的 use_proto=0 实验。
+    parser.set_defaults(proto_ablation='linear_softmax_linear')
     parser.add_argument('--use_spatio', type=int, default=1)
     parser.add_argument('--use_temporal', type=int, default=1)
     parser.add_argument('--use_his', type=int, choices=[0, 1], default=1,

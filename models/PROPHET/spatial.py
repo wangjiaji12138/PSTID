@@ -20,16 +20,25 @@ class SpatialCodebook(nn.Module):
     def __init__(self, num_protos: int, proto_emb_dim: int = None,
                  adj_mx_emb_dim: int = None, spatial_emb_dim: int = None,
                  time_series_dim: int = None,
-                 temperature: float = 2.0, use_his: bool = True):
+                 temperature: float = 2.0, use_his: bool = True,
+                 use_proto: bool = True):
         super().__init__()
         self.num_protos = num_protos
         self.proto_emb_dim = proto_emb_dim
         self.temperature = temperature
         self.use_his = use_his
+        self.use_proto = use_proto
 
-        # 原型参数
-        self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
-        nn.init.orthogonal_(self.prototypes)
+        if use_proto:
+            self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
+            nn.init.orthogonal_(self.prototypes)
+        else:
+            # 映射到分配空间，归一化后再映射回特征空间。
+            self.linear = nn.Sequential(
+                nn.Linear(self.proto_emb_dim, num_protos),
+                nn.Softmax(dim=-1),
+                nn.Linear(num_protos, self.proto_emb_dim),
+            )
 
         # 统一投影层：拼接 (空间嵌入 + time_series_mean) → proto_emb_dim
         # use_adj=True 时用 adj_mx_emb_dim，use_adj=False 时用 spatial_emb_dim
@@ -85,7 +94,10 @@ class SpatialCodebook(nn.Module):
             x_combined = torch.cat([spatial_emb, x_node_mean], dim=-1)
         proj_feat = self.proj(x_combined)  # (N, proto_emb_dim)
 
-        _, proto_enhanced = self._compute_attention(proj_feat)
+        if self.use_proto:
+            _, proto_enhanced = self._compute_attention(proj_feat)
+        else:
+            proto_enhanced = self.linear(proj_feat)
         # proto_enhanced: (N, proto_emb_dim)
 
         # reshape 回 (B, T, N, dim)

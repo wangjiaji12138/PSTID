@@ -1,0 +1,69 @@
+{
+  "status": "passed",
+  "scope": "Numerical cross-checks only; analytical proofs are in prototype_advantage.md.",
+  "torch_version": "2.4.0+cu121",
+  "dtype": "torch.float64",
+  "seed": 20261019,
+  "source_sha256": {
+    "models/PROPHET/spatial.py": "3b926487c5d6a7cc55bec39be8a31c8acb02c435f7ff3db2e784f3c443756543",
+    "models/PROPHET/temporal.py": "3dc8f65abbfaa4355e87772e0520aaa6805c3f5b04655b7e04be37cdc3580a92",
+    "models/PROPHET/prototype.py": "e3df3b1c344555515502ae13dbdd958e40d68f1e64eb5d621cdab41005a5d4d2",
+    "models/PROPHET/model.py": "395d45b29ad1efb8f7fb737ebbc00caefd2e5bf15180b7570e89b2a1e88154fb",
+    "training/config.py": "b60e75e20740afe3967362a66b597db497a34ac13977988083ee4c9e9fef3c00",
+    "prove/verify_math.py": "a4bee713a9fe9e05d383cb2f1da668e055dcd51c4eaaeef95ad1146ca9785a6a"
+  },
+  "spatial": {
+    "query_scale_invariance_max_error": 1.1102230246251565e-16,
+    "normalized_query_tied_LSL_max_error": 8.326672684688674e-17,
+    "radial_jacobian_max_error": 1.3877787807814457e-17,
+    "jacobian_spectral_norm": 0.19841472524216114,
+    "jacobian_proven_upper_bound": 0.2660277993193819,
+    "four_point_prototype_max_error": 5.551115123125783e-17,
+    "unbounded_LSL_saturation_MSE": {
+      "1.0": 0.009240281105606351,
+      "4.0": 3.455448748818844e-05,
+      "10.0": 2.2006203278699475e-10
+    }
+  },
+  "temporal_containment": {
+    "GELU_identity_max_error": 8.881784197001252e-16,
+    "production_module_output_max_error": 1.1102230246251565e-16,
+    "unchanged_query_max_error": 0.0
+  },
+  "temporal_interaction": {
+    "prototype_predictions": [
+      1.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    "prototype_max_error": 0.0,
+    "prototype_MSE": 0.0,
+    "prototype_MAE": 0.0,
+    "analytically_proven_LSL_MSE_lower_bound": 0.0625,
+    "analytically_proven_LSL_MAE_lower_bound": 0.125,
+    "sampled_LSL_count_not_a_proof": 4096,
+    "sampled_LSL_min_MSE": 0.18230916322291094,
+    "sampled_LSL_min_MAE": 0.2915747817414603
+  },
+  "replacement_parameter_counts": {
+    "spatial_prototype": 1024,
+    "spatial_LSL": 2128,
+    "temporal_prototype": 9865,
+    "temporal_LSL": 1096
+  },
+  "known_affine_subspace_risk": {
+    "well_specified": {
+      "unconstrained_risk": 0.07499999999999998,
+      "constrained_risk": 0.02999999999999999,
+      "structural_bias_squared": 0.0,
+      "predicted_variance_saving": 0.045
+    },
+    "misspecified": {
+      "unconstrained_risk": 0.07499999999999998,
+      "constrained_risk": 0.27999999999999997,
+      "structural_bias_squared": 0.25,
+      "predicted_variance_saving": 0.045
+    }
+  }
+}

@@ -50,6 +50,9 @@ class RefactorTests(unittest.TestCase):
     def test_pre_refactor_forecasts_and_gradients(self):
         fixture = json.loads((ROOT / 'tests/fixtures/prophet_reference.json').read_text())
         for case in fixture['cases']:
+            # 旧版 use_proto=False 删除整个分支；新语义由 Linear 对照测试覆盖。
+            if not case['flags'].get('use_proto', True):
+                continue
             with self.subTest(flags=case['flags']):
                 torch.manual_seed(42)
                 model = PROPHET(**model_kwargs(), **case['flags']).eval()
@@ -59,6 +62,93 @@ class RefactorTests(unittest.TestCase):
                 output.square().mean().backward()
                 gradient = model.time_series_emb_layer.weight.grad
                 torch.testing.assert_close(gradient.flatten(), torch.tensor(case['input_gradient']), atol=1e-6, rtol=1e-5)
+
+    def test_linear_ablation_trains_both_branches_and_roundtrips(self):
+        for use_adj, use_his in itertools.product((False, True), repeat=2):
+            with self.subTest(use_adj=use_adj, use_his=use_his):
+                torch.manual_seed(42)
+                kwargs = dict(model_kwargs(), num_spatial_prototypes=3, num_temporal_prototypes=5)
+                model = PROPHET(**kwargs, use_proto=False,
+                                use_adj=use_adj, use_his=use_his).eval()
+                spatial = model.proto_module.spatial_codebook
+                temporal = model.proto_module.temporal_basis
+                for branch, count in ((spatial, 3), (temporal, 5)):
+                    self.assertIsInstance(branch.linear[0], torch.nn.Linear)
+                    self.assertIsInstance(branch.linear[1], torch.nn.Softmax)
+                    self.assertIsInstance(branch.linear[2], torch.nn.Linear)
+                    self.assertEqual(branch.linear[0].out_features, count)
+                    self.assertEqual(branch.linear[2].in_features, count)
+                    self.assertEqual(branch.linear[2].out_features, model.proto_emb_dim)
+                self.assertFalse(hasattr(spatial, 'prototypes'))
+                for name in ('prototypes', 'allocator', 'temp'):
+                    self.assertFalse(hasattr(temporal, name))
+                self.assertEqual(spatial.linear[0].in_features, model.proto_emb_dim)
+                self.assertEqual(temporal.linear[0].in_features, 8 + (8 if use_his else 0))
+                assignments = []
+                handles = [branch.linear[1].register_forward_hook(
+                    lambda module, inputs, output: assignments.append(output.detach())
+                ) for branch in (spatial, temporal)]
+                output = model({'X': example_input()})
+                for handle in handles:
+                    handle.remove()
+                self.assertEqual(len(assignments), 2)
+                for weights, count in zip(assignments, (3, 5)):
+                    self.assertEqual(weights.shape[-1], count)
+                    self.assertTrue((weights >= 0).all())
+                    torch.testing.assert_close(weights.sum(-1), torch.ones_like(weights[..., 0]))
+                self.assertEqual(output.shape, (2, 2, 6, 1))
+                self.assertTrue(torch.isfinite(output).all())
+                output.square().mean().backward()
+                for layer in (spatial.linear[0], spatial.linear[2],
+                              temporal.linear[0], temporal.linear[2], spatial.proj,
+                              temporal.proj[0], model.proto_module.proto_out_proj):
+                    self.assertTrue(torch.isfinite(layer.weight.grad).all())
+                    self.assertGreater(layer.weight.grad.abs().sum().item(), 0)
+                restored = PROPHET(**kwargs, use_proto=False,
+                                   use_adj=use_adj, use_his=use_his).eval()
+                restored.load_state_dict(model.state_dict(), strict=True)
+                torch.testing.assert_close(restored({'X': example_input()}), output)
+
+    def test_linear_ablation_preserves_history_exclusion(self):
+        for use_adj in (False, True):
+            model = PROPHET(**model_kwargs(), use_proto=False,
+                            use_adj=use_adj, use_his=False).eval()
+            _, history, tid, diw, node, adj = model._get_embeddings({'X': example_input()})
+            clean = model.proto_module(history, adj, node, tid, diw)
+            invalid = model.proto_module(torch.full_like(history, float('nan')), adj, node, tid, diw)
+            torch.testing.assert_close(clean, invalid, rtol=0, atol=0)
+
+    def test_linear_ablation_config_and_legacy_results(self):
+        from unittest.mock import patch
+        from experiments import ablation
+        from training.checkpoint import save_results
+
+        args = create_parser().parse_args(['--use_proto', '0'])
+        self.assertEqual(args.proto_ablation, 'linear_softmax_linear')
+        self.assertEqual(ablation.ABL_LABELS[ablation.identify_abl_type(vars(args))], 'Linear-Softmax-Linear')
+        model = PROPHET.from_args(args, 6, torch.eye(6), torch.device('cpu'))
+        self.assertFalse(model.proto_module.spatial_codebook.use_proto)
+        self.assertFalse(model.proto_module.temporal_basis.use_proto)
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / 'sample'
+            base.mkdir()
+            new_dir = base / 'PROPHET_20261019_120000'
+            new_dir.mkdir()
+            save_results(new_dir, {}, {'MAE': 1.0}, args)
+            saved = json.loads((new_dir / 'config.json').read_text())
+            self.assertEqual(saved['proto_ablation'], 'linear_softmax_linear')
+            # 即使旧实验的时间戳更晚，也不能覆盖 Linear 对照。
+            for name, config in (
+                ('PSTID_20261020_120000', {'use_proto': False}),
+                ('PROPHET_20261021_120000', {'use_proto': False, 'proto_ablation': 'linear'}),
+            ):
+                old_dir = base / name
+                old_dir.mkdir()
+                (old_dir / 'config.json').write_text(json.dumps(config))
+                (old_dir / 'test_results.json').write_text(json.dumps({'MAE': 2.0}))
+            with patch.object(ablation, 'RESULTS_ROOT', Path(tmp)):
+                result = ablation.load_results('sample')
+            self.assertEqual(result['minus_proto']['exp_dir'], new_dir.name)
 
     def test_forward_has_no_diagnostic_hooks_or_caches(self):
         model = PROPHET(**model_kwargs())
@@ -192,7 +282,10 @@ assert 'models.STSSL.STSSL' not in sys.modules
     def test_training_without_history_cli_checkpoint_reload_and_metrics(self):
         self._check_training_cli_checkpoint_reload_and_metrics(use_his=False)
 
-    def _check_training_cli_checkpoint_reload_and_metrics(self, use_his=True):
+    def test_training_linear_cli_checkpoint_reload_and_metrics(self):
+        self._check_training_cli_checkpoint_reload_and_metrics(use_proto=False)
+
+    def _check_training_cli_checkpoint_reload_and_metrics(self, use_his=True, use_proto=True):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             ds = tmp / 'data' / 'sample'
@@ -212,6 +305,8 @@ assert 'models.STSSL.STSSL' not in sys.modules
                        '--num_spatial_prototypes', '4', '--num_temporal_prototypes', '4']
             if not use_his:
                 command.extend(['--use_his', '0'])
+            if not use_proto:
+                command.extend(['--use_proto', '0'])
             guard = """
 import importlib.abc
 import runpy
@@ -233,6 +328,9 @@ runpy.run_path(sys.argv[0], run_name='__main__')
             self.assertEqual(len(checkpoints), 1)
             checkpoint = torch.load(checkpoints[0], map_location='cpu', weights_only=False)
             self.assertIs(checkpoint['config']['use_his'], use_his)
+            self.assertIs(checkpoint['config']['use_proto'], use_proto)
+            if not use_proto:
+                self.assertEqual(checkpoint['config']['proto_ablation'], 'linear_softmax_linear')
             args = create_parser().parse_args([])
             vars(args).update(checkpoint['config'])
             model = build_model('PROPHET', args, 6, torch.eye(6), torch.device('cpu')).eval()

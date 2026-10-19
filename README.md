@@ -69,6 +69,8 @@ python train.py --model STID --data cq --gpu 0
 
 CPU 运行用 `--device cpu`；`--results_dir` 可指定实验结果根目录。训练结束后保存模型、配置、日志及指标，不生成图片或采集原型诊断数据。
 
+`--use_proto 0` 使用 `Linear → Softmax → Linear` 替代时空原型分配，中间维度为对应的原型数量，保留 Query 残差和融合分支。旧版删除整个原型分支或使用单 Linear 的实验需重新训练，不能作为此对照的结果。
+
 消融结果分析：
 
 ```bash

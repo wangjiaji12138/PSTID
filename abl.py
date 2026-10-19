@@ -7,6 +7,7 @@ from experiments.ablation import (
     METRICS,
     DATASETS,
     MODEL_NAME,
+    MODEL_ALIASES,
     identify_abl_type,
     load_results,
     pct,
