@@ -80,7 +80,7 @@ class ProtoModule(nn.Module):
                 node_emb: torch.Tensor = None,
                 tid_emb: torch.Tensor = None,
                 diw_emb: torch.Tensor = None) -> torch.Tensor | None:
-        """Fuse codebook features and query residuals into the backbone dimension."""
+        """Fuse branch features; add query residuals only with prototypes enabled."""
         spatial_out = None
         temporal_enhanced = temporal_proj = None
         if self.use_spatio:
@@ -102,4 +102,6 @@ class ProtoModule(nn.Module):
         else:
             return None
 
-        return self.proto_out_proj(enhanced + projected)
+        if self.use_proto:
+            enhanced = enhanced + projected
+        return self.proto_out_proj(enhanced)

@@ -93,8 +93,8 @@ def load_results(dataset: str) -> dict[str, dict]:
 
         with open(config_path) as f:
             config = json.load(f)
-        if not config.get("use_proto", True) and config.get("proto_ablation") != "linear_softmax_linear":
-            print(f"  [警告] {dataset}/{exp_dir.name} 是旧版 use_proto=0 实验（删除分支或单 Linear），"
+        if not config.get("use_proto", True) and config.get("proto_ablation") != "linear_softmax_linear_no_query_residual":
+            print(f"  [警告] {dataset}/{exp_dir.name} 是旧版 use_proto=0 实验（带 Query 残差、删除分支或单 Linear），"
                   "不纳入 Linear-Softmax-Linear 对照，请重新训练 --use_proto 0")
             continue
         with open(metrics_path) as f:

@@ -101,13 +101,44 @@ class RefactorTests(unittest.TestCase):
                 output.square().mean().backward()
                 for layer in (spatial.linear[0], spatial.linear[2],
                               temporal.linear[0], temporal.linear[2], spatial.proj,
-                              temporal.proj[0], model.proto_module.proto_out_proj):
+                              model.proto_module.proto_out_proj):
                     self.assertTrue(torch.isfinite(layer.weight.grad).all())
                     self.assertGreater(layer.weight.grad.abs().sum().item(), 0)
+                for parameter in temporal.proj.parameters():
+                    self.assertIsNone(parameter.grad)
                 restored = PROPHET(**kwargs, use_proto=False,
                                    use_adj=use_adj, use_his=use_his).eval()
                 restored.load_state_dict(model.state_dict(), strict=True)
                 torch.testing.assert_close(restored({'X': example_input()}), output)
+
+    def test_query_residuals_only_affect_prototype_mode(self):
+        def corrupt_spatial_query(module, inputs, output):
+            return dict(output, proj_feat=torch.full_like(output['proj_feat'], float('nan')))
+
+        def corrupt_temporal_query(module, inputs, output):
+            return output[0], torch.full_like(output[1], float('nan'))
+
+        for use_proto, use_spatio, use_temporal in itertools.product((False, True), repeat=3):
+            if not (use_spatio or use_temporal):
+                continue
+            with self.subTest(use_proto=use_proto, use_spatio=use_spatio, use_temporal=use_temporal):
+                model = PROPHET(**model_kwargs(), use_proto=use_proto,
+                                use_spatio=use_spatio, use_temporal=use_temporal).eval()
+                expected = model({'X': example_input()})
+                handles = []
+                if use_spatio:
+                    handles.append(model.proto_module.spatial_codebook.register_forward_hook(corrupt_spatial_query))
+                if use_temporal:
+                    handles.append(model.proto_module.temporal_basis.register_forward_hook(corrupt_temporal_query))
+                try:
+                    actual = model({'X': example_input()})
+                finally:
+                    for handle in handles:
+                        handle.remove()
+                if use_proto:
+                    self.assertFalse(torch.isfinite(actual).all())
+                else:
+                    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
     def test_linear_ablation_preserves_history_exclusion(self):
         for use_adj in (False, True):
@@ -124,7 +155,7 @@ class RefactorTests(unittest.TestCase):
         from training.checkpoint import save_results
 
         args = create_parser().parse_args(['--use_proto', '0'])
-        self.assertEqual(args.proto_ablation, 'linear_softmax_linear')
+        self.assertEqual(args.proto_ablation, 'linear_softmax_linear_no_query_residual')
         self.assertEqual(ablation.ABL_LABELS[ablation.identify_abl_type(vars(args))], 'Linear-Softmax-Linear')
         model = PROPHET.from_args(args, 6, torch.eye(6), torch.device('cpu'))
         self.assertFalse(model.proto_module.spatial_codebook.use_proto)
@@ -136,11 +167,12 @@ class RefactorTests(unittest.TestCase):
             new_dir.mkdir()
             save_results(new_dir, {}, {'MAE': 1.0}, args)
             saved = json.loads((new_dir / 'config.json').read_text())
-            self.assertEqual(saved['proto_ablation'], 'linear_softmax_linear')
+            self.assertEqual(saved['proto_ablation'], 'linear_softmax_linear_no_query_residual')
             # 即使旧实验的时间戳更晚，也不能覆盖 Linear 对照。
             for name, config in (
                 ('PSTID_20261020_120000', {'use_proto': False}),
                 ('PROPHET_20261021_120000', {'use_proto': False, 'proto_ablation': 'linear'}),
+                ('PROPHET_20261022_120000', {'use_proto': False, 'proto_ablation': 'linear_softmax_linear'}),
             ):
                 old_dir = base / name
                 old_dir.mkdir()
@@ -330,7 +362,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
             self.assertIs(checkpoint['config']['use_his'], use_his)
             self.assertIs(checkpoint['config']['use_proto'], use_proto)
             if not use_proto:
-                self.assertEqual(checkpoint['config']['proto_ablation'], 'linear_softmax_linear')
+                self.assertEqual(checkpoint['config']['proto_ablation'], 'linear_softmax_linear_no_query_residual')
             args = create_parser().parse_args([])
             vars(args).update(checkpoint['config'])
             model = build_model('PROPHET', args, 6, torch.eye(6), torch.device('cpu')).eval()

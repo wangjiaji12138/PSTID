@@ -21,7 +21,7 @@ ABL=(
 
 # 数据集列表
 DATASETS=(
-    # "cq"
+    "cq"
     "hz"
     "jl"
     "sh"

@@ -6,10 +6,10 @@
 
 - [空间分支](../models/PROPHET/spatial.py)：余弦分配与键值共享，对比 Linear–Softmax–Linear。
 - [时间分支](../models/PROPHET/temporal.py)：GELU MLP 分配，对比 Linear–Softmax–Linear。
-- [融合模块](../models/PROPHET/prototype.py) 和 [完整模型](../models/PROPHET/model.py)：两种配置都保留 Query 残差、输出投影和主干。
+- [融合模块](../models/PROPHET/prototype.py) 和 [完整模型](../models/PROPHET/model.py)：两种配置都保留输出投影和主干；仅 `use_proto=1` 保留 Query 残差。
 - [训练入口](../training/runner.py)：实际使用 MAE 训练。下面涉及 MSE 的结论不自动成为 MAE 的结论；适用 MAE 的定理会单独说明。
 
-分析对象为 `proto_ablation="linear_softmax_linear"`。早期单 Linear、删除整个分支、硬分配和无旁路结构的结果不能混入此对照。
+分支分析适用于当前 `proto_ablation="linear_softmax_linear_no_query_residual"`，但完整网络比较必须计入 Query 残差只在原型模式启用的差异。旧版 `linear_softmax_linear` 两种配置均带 Query 残差。早期单 Linear、删除整个分支、硬分配和无旁路结构的结果不能混入此对照。
 
 **不能无条件证明当前模型必胜。** 例如令两种模型的最终回归权重和偏置都为零，则它们都输出零；在零目标分布上两者风险相同。更强的“所有数据上最优风险严格更低”也被常数目标反例排除。本文件证明结构性质、条件风险优势和明确构造上的严格优势，不把实验观察直接提升为普遍定理。
 
