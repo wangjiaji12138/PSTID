@@ -20,11 +20,12 @@ class SpatialCodebook(nn.Module):
     def __init__(self, num_protos: int, proto_emb_dim: int = None,
                  adj_mx_emb_dim: int = None, spatial_emb_dim: int = None,
                  time_series_dim: int = None,
-                 temperature: float = 2.0):
+                 temperature: float = 2.0, use_his: bool = True):
         super().__init__()
         self.num_protos = num_protos
         self.proto_emb_dim = proto_emb_dim
         self.temperature = temperature
+        self.use_his = use_his
 
         # 原型参数
         self.prototypes = nn.Parameter(torch.randn(num_protos, self.proto_emb_dim))
@@ -33,7 +34,7 @@ class SpatialCodebook(nn.Module):
         # 统一投影层：拼接 (空间嵌入 + time_series_mean) → proto_emb_dim
         # use_adj=True 时用 adj_mx_emb_dim，use_adj=False 时用 spatial_emb_dim
         codebook_emb_dim = adj_mx_emb_dim if adj_mx_emb_dim is not None else spatial_emb_dim
-        combined_dim = codebook_emb_dim + time_series_dim
+        combined_dim = codebook_emb_dim + (time_series_dim if use_his else 0)
         self.proj = nn.Linear(combined_dim, proto_emb_dim)
 
     def _compute_attention(self, proj_feat: torch.Tensor) -> tuple:
@@ -64,7 +65,7 @@ class SpatialCodebook(nn.Module):
         """完整前向传播：投影 + 码本注意力
 
         Args:
-            time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)
+            time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)，use_his=False 时仅取形状
             adj_mx_emb: adj_mx 衍生的可学习节点嵌入 (N, D_adj_mx)
             node_emb: 节点可学习嵌入 (N, spatial_emb_dim)，当 use_adj=False 时使用
 
@@ -78,8 +79,10 @@ class SpatialCodebook(nn.Module):
         # ===== 静态 Query：所有样本共享 =====
         # 空间嵌入优先使用 adj_mx_emb（包含图结构信息），否则回退到 node_emb
         spatial_emb = adj_mx_emb if adj_mx_emb is not None else node_emb
-        x_node_mean = time_series_emb.mean(dim=1).mean(dim=0)  # (N, D_time_series)
-        x_combined = torch.cat([spatial_emb, x_node_mean], dim=-1)  # (N, D_spatial + D_time_series)
+        x_combined = spatial_emb
+        if self.use_his:
+            x_node_mean = time_series_emb.mean(dim=1).mean(dim=0)  # (N, D_time_series)
+            x_combined = torch.cat([spatial_emb, x_node_mean], dim=-1)
         proj_feat = self.proj(x_combined)  # (N, proto_emb_dim)
 
         _, proto_enhanced = self._compute_attention(proj_feat)

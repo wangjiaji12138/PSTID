@@ -88,7 +88,7 @@ Batch size: {getattr(args, 'batch_size', 'N/A')}
 Device: {getattr(args, 'device', 'N/A')}
 Seed: {getattr(args, 'seed', 'N/A')}
 --------------------------------------------------------------------------------
-Proto: {getattr(args, 'use_proto', 'N/A')} (spatio={getattr(args, 'use_spatio', 'N/A')}, temporal={getattr(args, 'use_temporal', 'N/A')})
+Proto: {getattr(args, 'use_proto', 'N/A')} (spatio={getattr(args, 'use_spatio', 'N/A')}, temporal={getattr(args, 'use_temporal', 'N/A')}, his={getattr(args, 'use_his', 'N/A')})
 Num spatial protos: {getattr(args, 'num_spatial_prototypes', 'N/A')}
 Num temporal protos: {getattr(args, 'num_temporal_prototypes', 'N/A')}
 Proto temperature: {getattr(args, 'proto_temperature', 'N/A')}

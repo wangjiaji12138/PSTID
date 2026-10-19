@@ -29,7 +29,8 @@ class ProtoModule(nn.Module):
                  temp_dim_diw: int = None,
                  proto_emb_dim: int = None,
                  hidden_dim: int = None,
-                 use_adj: bool = True):
+                 use_adj: bool = True,
+                 use_his: bool = True):
         super().__init__()
 
         self.n_spatial, self.n_temporal = n_spatial, n_temporal
@@ -40,6 +41,7 @@ class ProtoModule(nn.Module):
         self.spatial_emb_dim = spatial_emb_dim
         self.proto_emb_dim = proto_emb_dim
         self.use_adj = use_adj
+        self.use_his = use_his
 
         self.spatial_codebook = None
         self.temporal_basis = None
@@ -51,6 +53,7 @@ class ProtoModule(nn.Module):
                 spatial_emb_dim=spatial_emb_dim,
                 time_series_dim=time_series_dim,
                 temperature=proto_temp,
+                use_his=use_his,
             )
 
         if use_temporal:
@@ -61,6 +64,7 @@ class ProtoModule(nn.Module):
                 day_of_week_size=day_of_week_size,
                 temp_dim_tid=temp_dim_tid,
                 temp_dim_diw=temp_dim_diw,
+                use_his=use_his,
             )
 
         # ---- 输出投影层：proto_enhanced (proto_dim) -> hidden_dim ----

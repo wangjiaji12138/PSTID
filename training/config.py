@@ -12,7 +12,7 @@ def create_parser():
     # ============================================================
     # 1) Basic
     # ============================================================
-    parser.add_argument('--seed', type=int, default=13)
+    parser.add_argument('--seed', type=int, default=88)
     parser.add_argument('--data', type=str.lower, default='cq',
                         help='数据集名称，如 cq、hz、sh、jl、yt、chi_taxi、nyc_taxi')
     parser.add_argument('--data_dir', type=str, default=str(DATA_ROOT / 'processed'))
@@ -71,6 +71,8 @@ def create_parser():
     parser.add_argument('--use_proto', type=int, default=1)
     parser.add_argument('--use_spatio', type=int, default=1)
     parser.add_argument('--use_temporal', type=int, default=1)
+    parser.add_argument('--use_his', type=int, choices=[0, 1], default=1,
+                        help='原型分支是否使用时间序列嵌入（0=仅身份嵌入，1=包含历史序列）')
 
     parser.add_argument('--results_dir', type=str, default=str(RESULTS_ROOT), help='实验结果根目录')
     return parser

@@ -3,6 +3,9 @@
 ## 依赖方向
 
 ```text
+train.py（训练启动入口）
+       │
+       ▼
 training.runner ──→ training.engine ──→ models
        │                    │
        ├─────────→ data_pipeline
@@ -11,7 +14,7 @@ training.runner ──→ training.engine ──→ models
 experiments.ablation ──→ 已保存的配置和测试指标
 ```
 
-模型代码只负责预测计算。训练引擎负责损失、优化、验证、早停和测试；入口模块组织实验。通用指标和日志放在 `utils`，数据逻辑集中在 `data_pipeline`。
+训练通过 `python train.py` 启动，由它调用 `training.runner.main` 组织实验。模型代码只负责预测计算。训练引擎负责损失、优化、验证、早停和测试。通用指标和日志放在 `utils`，数据逻辑集中在 `data_pipeline`。
 
 ## 原文件迁移
 
@@ -19,13 +22,13 @@ experiments.ablation ──→ 已保存的配置和测试指标
 | --- | --- | --- |
 | `models/PROPHET/PROPHET.py` | `models/PROPHET/model.py` 及各组件 | 导出模型、计算组件和图初始化函数 |
 | `model_builder.py` | `models/registry.py` | 保留 `build_model`、`MODEL_LIST` |
-| `train.py` | `training/` 与 `data_pipeline/` | 保留旧 CLI 和主要训练函数导出 |
+| `train.py` | `training/` 与 `data_pipeline/` | 训练启动入口，并保留主要训练函数导出 |
 | `gen_dataset.py` | `data_pipeline/grid.py` | 保留类和 CLI |
 | `prepare_dataset.py` | `data_pipeline/npz.py` | 保留函数、配置和 CLI |
 | `utils/data_utils.py` | `data_pipeline/dataset.py` | 保留三个公共对象 |
 | `abl.py` | `experiments/ablation.py` | 保留报告函数和 CLI |
 
-新增代码应导入实际实现模块，兼容入口用于旧脚本和调用方。基线模型的目录及算法保持原样。
+新增代码应导入实际实现模块；训练命令统一使用 `train.py`，其余兼容入口用于旧脚本和调用方。基线模型的目录及算法保持原样。
 
 绘图模块、数据采集钩子、原型使用率缓存及对应命令已移除。`PROPHET.forward` 只接收 batch，`ProtoModule.forward` 只返回融合特征；不再提供诊断对象或额外注意力导出。注意力仍作为原型加权计算的中间结果参与训练。训练日志保留损失、学习率和评估指标。
 

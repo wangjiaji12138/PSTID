@@ -16,6 +16,7 @@ ABL=(
     "use_spatio"
     "use_temporal"
     "use_adj"
+    "use_his"
 )
 
 # 数据集列表
@@ -27,9 +28,10 @@ DATASETS=(
     "yt"
     "chi_taxi"
     "nyc_taxi"
+    "nyc_bike"
 )
 
-GPU=4
+GPU=2
 EPOCHS=100
 
 # 验证模型名称

@@ -3,6 +3,7 @@
 Run with: python -m unittest discover -s tests -v
 """
 import importlib
+import itertools
 import json
 import os
 from pathlib import Path
@@ -75,6 +76,63 @@ class RefactorTests(unittest.TestCase):
         model.apply(lambda module: visited.append(module))
         self.assertIn(model.proto_module, visited)
 
+    def test_prototype_history_ablation_is_independent_of_history(self):
+        for use_adj in (True, False):
+            with self.subTest(use_adj=use_adj):
+                model = PROPHET(**model_kwargs(), use_his=False, use_adj=use_adj).eval()
+                _, history, tid, diw, node, adj = model._get_embeddings({'X': example_input()})
+                history = history.detach().requires_grad_()
+                spatial = model.proto_module.spatial_codebook
+                temporal = model.proto_module.temporal_basis
+                self.assertEqual(spatial.proj.in_features, 4)
+                self.assertEqual(temporal.allocator[0].in_features, 8)
+                self.assertEqual(temporal.proj[0].in_features, 8)
+
+                def features(hist):
+                    return (*spatial(hist, adj, node).values(), *temporal(hist, tid, diw))
+
+                original = features(history)
+                # Even invalid history values must not enter either prototype path.
+                altered = features(torch.full_like(history, float('nan')))
+                for before, after in zip(original, altered):
+                    torch.testing.assert_close(before, after, rtol=0, atol=0)
+                sum(feature.square().mean() for feature in original).backward()
+                self.assertIsNone(history.grad)
+                self.assertGreater(model.time_in_day_emb.grad.abs().sum().item(), 0)
+                self.assertGreater(model.day_in_week_emb.grad.abs().sum().item(), 0)
+                spatial_embedding = model.adj_mx_emb if use_adj else model.node_emb
+                self.assertGreater(spatial_embedding.grad.abs().sum().item(), 0)
+
+    def test_history_ablation_with_other_switches_preserves_backbone_gradients(self):
+        for use_adj, use_proto, use_spatio, use_temporal in itertools.product((False, True), repeat=4):
+            flags = dict(use_adj=use_adj, use_proto=use_proto,
+                         use_spatio=use_spatio, use_temporal=use_temporal)
+            with self.subTest(**flags):
+                model = PROPHET(**model_kwargs(), use_his=False, **flags).eval()
+                output = model({'X': example_input()})
+                self.assertEqual(output.shape, (2, 2, 6, 1))
+                self.assertTrue(torch.isfinite(output).all())
+                output.square().mean().backward()
+                gradient = model.time_series_emb_layer.weight.grad
+                self.assertTrue(torch.isfinite(gradient).all())
+                self.assertGreater(gradient.abs().sum().item(), 0)
+
+    def test_history_ablation_cli_factory_and_result_label(self):
+        from experiments.ablation import identify_abl_type
+
+        parser = create_parser()
+        self.assertTrue(parser.parse_args([]).use_his)
+        args = parser.parse_args(['--use_his', '0'])
+        for config in (args, vars(args)):
+            model = PROPHET.from_args(config, 6, torch.eye(6), torch.device('cpu'))
+            self.assertFalse(model.use_his)
+            self.assertFalse(model.proto_module.spatial_codebook.use_his)
+            self.assertFalse(model.proto_module.temporal_basis.use_his)
+        self.assertEqual(identify_abl_type(vars(args)), 'minus_his')
+        self.assertEqual(identify_abl_type({}), 'full')
+        self.assertEqual(identify_abl_type({'use_his': True}), 'full')
+        self.assertTrue(PROPHET.from_args({}, 6, None, torch.device('cpu')).use_his)
+
     def test_legacy_import_order_and_factory_mapping(self):
         importlib.import_module('models.PROPHET.PROPHET')
         from models.PROPHET import PROPHET as package_class
@@ -129,6 +187,12 @@ assert 'models.STSSL.STSSL' not in sys.modules
             np.testing.assert_array_equal(splits['test']['X'], x[12:])
 
     def test_training_cli_checkpoint_reload_and_metrics(self):
+        self._check_training_cli_checkpoint_reload_and_metrics()
+
+    def test_training_without_history_cli_checkpoint_reload_and_metrics(self):
+        self._check_training_cli_checkpoint_reload_and_metrics(use_his=False)
+
+    def _check_training_cli_checkpoint_reload_and_metrics(self, use_his=True):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             ds = tmp / 'data' / 'sample'
@@ -146,6 +210,8 @@ assert 'models.STSSL.STSSL' not in sys.modules
                        '--node_emb_dim', '4', '--proto_emb_dim', '8', '--adj_mx_emb_dim', '4',
                        '--tid', '4', '--diw', '4', '--num_layers', '1',
                        '--num_spatial_prototypes', '4', '--num_temporal_prototypes', '4']
+            if not use_his:
+                command.extend(['--use_his', '0'])
             guard = """
 import importlib.abc
 import runpy
@@ -166,6 +232,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
             checkpoints = list((tmp / 'results').rglob('best_model.pth'))
             self.assertEqual(len(checkpoints), 1)
             checkpoint = torch.load(checkpoints[0], map_location='cpu', weights_only=False)
+            self.assertIs(checkpoint['config']['use_his'], use_his)
             args = create_parser().parse_args([])
             vars(args).update(checkpoint['config'])
             model = build_model('PROPHET', args, 6, torch.eye(6), torch.device('cpu')).eval()

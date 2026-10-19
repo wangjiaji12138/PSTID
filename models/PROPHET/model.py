@@ -38,7 +38,8 @@ class PROPHET(BaseModel):
                  use_adj: bool = True,
                  # adj_mx 衍生的可学习节点嵌入维度
                  adj_mx_emb_dim: int = 64,
-                 adj_mx: torch.Tensor = None):
+                 adj_mx: torch.Tensor = None,
+                 use_his: bool = True):
         super().__init__()
 
         # ==================== STID 基础参数 ====================
@@ -66,6 +67,7 @@ class PROPHET(BaseModel):
         # 不影响时间/空间嵌入的使用（嵌入由 if_time_in_day, if_day_in_week, if_spatial 控制）
         self.use_temporal = use_temporal
         self.use_spatio = use_spatio
+        self.use_his = use_his
 
         self.use_proto = use_proto
         self.num_spatial_prototypes = num_spatial_prototypes
@@ -129,6 +131,7 @@ class PROPHET(BaseModel):
                 n_temporal=self.num_temporal_prototypes,
                 use_spatio=self.use_spatio,
                 use_temporal=self.use_temporal,
+                use_his=self.use_his,
                 proto_temp=self.proto_temperature,
                 adj_mx_emb_dim=self.adj_mx_emb_dim,
                 spatial_emb_dim=self.spatial_emb_dim,
@@ -279,6 +282,7 @@ class PROPHET(BaseModel):
             use_adj=_get_arg(args, 'use_adj', True),
             use_spatio=_get_arg(args, 'use_spatio', True),
             use_temporal=_get_arg(args, 'use_temporal', True),
+            use_his=_get_arg(args, 'use_his', True),
             # 新增参数
             proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
             # adj_mx 衍生的可学习节点嵌入维度

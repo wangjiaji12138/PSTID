@@ -1,4 +1,4 @@
-"""Compatibility entry point; implementations live in the modules below."""
+"""Training CLI entry point; internal implementations live in the modules below."""
 
 from training.config import (
     create_parser,

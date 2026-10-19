@@ -26,7 +26,7 @@ PROPHET/
 │   └── npz.py                  # 原始 NPZ → 预测滑动窗口
 ├── training/
 │   ├── config.py               # 命令行参数
-│   ├── runner.py               # 实验流程入口
+│   ├── runner.py               # 内部实验流程，由 train.py 调用
 │   ├── engine.py               # 单轮训练、评估、早停
 │   ├── checkpoint.py           # checkpoint、指标与配置保存
 │   └── reproducibility.py      # 随机种子与确定性设置
@@ -35,7 +35,7 @@ PROPHET/
 ├── tests/                     # 数值回归与训练集成测试
 ├── data/                      # 原始数据与预处理产物
 ├── results/                   # 训练结果
-└── train.py 等                 # 旧训练、数据准备和分析命令兼容入口
+└── train.py                    # 训练启动入口
 ```
 
 详细设计见 [架构与迁移说明](docs/architecture.md)；模型计算过程见 [PROPHET 组件说明](models/PROPHET/README.md)。
@@ -58,12 +58,13 @@ python -m data_pipeline.npz NYC_TAXI
 训练与消融：
 
 ```bash
-python -m training.runner --model PROPHET --data cq --epochs 100 --gpu 0
-python -m training.runner --model PROPHET --data cq --use_proto 0 --gpu 0
-python -m training.runner --model PROPHET --data cq --use_spatio 0 --gpu 0
-python -m training.runner --model PROPHET --data cq --use_temporal 0 --gpu 0
-python -m training.runner --model PROPHET --data cq --use_adj 0 --gpu 0
-python -m training.runner --model STID --data cq --gpu 0
+python train.py --model PROPHET --data cq --epochs 100 --gpu 0
+python train.py --model PROPHET --data cq --use_proto 0 --gpu 0
+python train.py --model PROPHET --data cq --use_spatio 0 --gpu 0
+python train.py --model PROPHET --data cq --use_temporal 0 --gpu 0
+python train.py --model PROPHET --data cq --use_adj 0 --gpu 0
+python train.py --model PROPHET --data cq --use_his 0 --gpu 0
+python train.py --model STID --data cq --gpu 0
 ```
 
 CPU 运行用 `--device cpu`；`--results_dir` 可指定实验结果根目录。训练结束后保存模型、配置、日志及指标，不生成图片或采集原型诊断数据。
@@ -74,7 +75,7 @@ CPU 运行用 `--device cpu`；`--results_dir` 可指定实验结果根目录。
 python -m experiments.ablation
 ```
 
-原来的 `python train.py`、`python gen_dataset.py`、`python prepare_dataset.py` 和 `python abl.py` 仍可使用。根目录的批量实验 shell 脚本沿用这些入口。绘图入口、示例曲线生成脚本和 `--no_viz` 参数已删除。
+训练统一通过 `python train.py` 启动，`training/runner.py` 仅实现内部实验流程。根目录的批量实验 shell 脚本也使用 `train.py`。`python gen_dataset.py`、`python prepare_dataset.py` 和 `python abl.py` 仍可使用。绘图入口、示例曲线生成脚本和 `--no_viz` 参数已删除。
 
 ## 数据与模型接口
 

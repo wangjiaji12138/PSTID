@@ -1,4 +1,4 @@
-"""Assemble and execute one forecasting experiment."""
+"""Internal experiment orchestration, invoked by the train.py CLI."""
 import os
 import gc
 from datetime import datetime
@@ -25,6 +25,7 @@ def main():
     args.use_proto = bool(args.use_proto)
     args.use_spatio = bool(args.use_spatio)
     args.use_temporal = bool(args.use_temporal)
+    args.use_his = bool(args.use_his)
 
     # Validate model against the shared registry
     if args.model.upper() not in MODEL_LIST:
@@ -131,6 +132,3 @@ def main():
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     gc.collect()
-
-if __name__ == '__main__':
-    main()
