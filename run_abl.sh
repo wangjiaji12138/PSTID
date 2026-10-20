@@ -23,9 +23,9 @@ ABL=(
 DATASETS=(
     "cq"
     "hz"
-    "jl"
-    "sh"
-    "yt"
+    # "jl"
+    # "sh"
+    # "yt"
     "chi_taxi"
     "nyc_taxi"
     "nyc_bike"

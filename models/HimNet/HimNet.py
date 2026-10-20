@@ -203,7 +203,8 @@ class HimDecoder(nn.Module):
 class HimNet(BaseModel):
     """Hierarchical Multi-scale Graph Network
     
-    输入格式: (B, T, N, 3) - [时序值, 时刻(day-of-time), 星期(day-of-week)]
+    输入格式: (B, T, N, 3) - [标准化数值, 时刻/每日槽数, 星期/7]
+    可选训练标签 y 必须与数值通道使用相同的标准化。
     输出格式: (B, out_window, N, 1) 预测结果
     """
     
@@ -229,6 +230,7 @@ class HimNet(BaseModel):
         adj_mx: np.ndarray = None,
         device: torch.device = None,
         time_intervals: int = 1800,
+        time_slots=None,
     ):
         super().__init__()
 
@@ -248,9 +250,25 @@ class HimNet(BaseModel):
         self.device = device or torch.device('cpu')
         self.time_intervals = time_intervals
         
-        # 根据时间间隔计算 time_of_day_size
-        self.time_of_day_size = int((24 * 60 * 60) / time_intervals)
+        if time_intervals <= 0 or 86400 % time_intervals != 0:
+            raise ValueError('time_intervals must be a positive divisor of 86400')
+        if input_dim != 3 or ycov_dim != 2:
+            raise ValueError('HimNet expects three input channels and two calendar covariates')
+        if tf_decay_steps <= 0:
+            raise ValueError('tf_decay_steps must be positive')
+        self.time_of_day_size = int(86400 / time_intervals)
         self.day_of_week_size = 7
+        # A fixed daily schedule supports datasets that omit nighttime slots.
+        # Stored in experiment config; not learned and not part of the state dict.
+        slots = torch.as_tensor(
+            list(range(self.time_of_day_size)) if time_slots is None else time_slots,
+            dtype=torch.long,
+        )
+        if (slots.ndim != 1 or slots.numel() == 0 or
+                (slots < 0).any() or (slots >= self.time_of_day_size).any() or
+                (slots[1:] <= slots[:-1]).any()):
+            raise ValueError('time_slots must be sorted, unique daily slot indices')
+        self.register_buffer('time_slots', slots, persistent=False)
         
         # 空间编码器
         self.encoder_s = HimEncoder(
@@ -289,7 +307,7 @@ class HimNet(BaseModel):
         self.out_proj = nn.Linear(hidden_dim, output_dim)
 
         # 时间嵌入 - 使用 nn.Embedding 保持原始设计
-        self.tod_embedding = nn.Embedding(288, tod_embedding_dim)
+        self.tod_embedding = nn.Embedding(self.time_of_day_size, tod_embedding_dim)
         self.dow_embedding = nn.Embedding(7, dow_embedding_dim)
         
         # 节点嵌入
@@ -300,15 +318,33 @@ class HimNet(BaseModel):
         # 时空投影
         self.st_proj = nn.Linear(self.hidden_dim, st_embedding_dim)
 
-        self.apply(self._init_weights)
+        # Keep Linear initialization unchanged, as in HimNet_ori.
 
-    @staticmethod
-    def _init_weights(m):
-        """Xavier均匀初始化"""
-        if isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d)):
-            nn.init.xavier_uniform_(m.weight)
-            if m.bias is not None:
-                nn.init.zeros_(m.bias)
+    def _calendar_features(self, x):
+        """Convert repository time features and extrapolate known calendar slots.
+
+        Encoders and decoder use the original convention: TOD in [0, 1),
+        integer DOW in [0, 6]. No demand labels are used here.
+        """
+        encoder_x = x.clone()
+        encoder_x[..., 2] = torch.round(x[..., 2] * 7)
+        tod_index = torch.round(x[:, -1, 0, 1] * self.time_of_day_size).long()
+        dow_index = encoder_x[:, -1, 0, 2].long()
+        position = torch.searchsorted(self.time_slots, tod_index.contiguous())
+        safe_position = position.clamp(max=self.time_slots.numel() - 1)
+        if not torch.all(self.time_slots[safe_position] == tod_index):
+            raise ValueError('Input time of day is absent from the configured daily schedule')
+        if not torch.all((encoder_x[..., 2] >= 0) & (encoder_x[..., 2] < 7)):
+            raise ValueError('Input weekday must use the repository convention dow / 7')
+
+        offsets = torch.arange(1, self.out_steps + 1, device=x.device)
+        future_position = position[:, None] + offsets[None, :]
+        future_tod = self.time_slots[future_position % self.time_slots.numel()]
+        future_dow = (dow_index[:, None] + future_position // self.time_slots.numel()) % 7
+        y_cov = torch.stack((future_tod.to(x.dtype) / self.time_of_day_size,
+                             future_dow.to(x.dtype)), dim=-1)
+        y_cov = y_cov[:, :, None, :].expand(-1, -1, self.num_nodes, -1)
+        return encoder_x, tod_index, dow_index, y_cov
 
     def compute_sampling_threshold(self, batches_seen):
         return self.tf_decay_steps / (
@@ -319,12 +355,12 @@ class HimNet(BaseModel):
         """模型前向传播
         
         Args:
-            batch: 包含 'X' 和 'y' 的字典
+            batch: 'X' 为标准化历史；可选 'y' 为同尺度的标准化训练标签
             batches_seen: 用于 curriculum learning 的批次计数
         Returns:
             (B, out_window, N, output_dim) 预测结果
         """
-        x = batch['X']  # (B, T, N, 3) - [时序值, 时刻, 星期]
+        x, tod_index, dow_index, y_cov = self._calendar_features(batch['X'])
         y = batch.get('y', None)  # (B, out_window, N, output_dim) 可选
         
         B, T, N, _ = x.shape
@@ -336,10 +372,8 @@ class HimNet(BaseModel):
         support = support.to(x.device)
 
         # 提取时间特征用于时间编码器
-        tod = x[:, -1, 0, 1]  # 使用最后一个时刻的 day-of-time
-        dow = x[:, -1, 0, 2]  # 使用最后一个时刻的 day-of-week
-        tod_emb = self.tod_embedding((tod * 288).long())
-        dow_emb = self.dow_embedding(dow.long())
+        tod_emb = self.tod_embedding(tod_index)
+        dow_emb = self.dow_embedding(dow_index)
         time_embedding = torch.cat([tod_emb, dow_emb], dim=-1)
 
         # 空间编码
@@ -360,11 +394,7 @@ class HimNet(BaseModel):
         ht_list = [h_last] * self.num_layers
         
         # 解码器输入: 全零初始
-        go = torch.zeros((B, self.num_nodes, self.output_dim), device=x.device)
-        
-        # 创建未来时间特征的虚拟输入 (用于兼容框架)
-        # 这里我们使用与输入相同的时间特征简化处理
-        y_cov = torch.zeros((B, self.out_steps, self.num_nodes, self.ycov_dim), device=x.device)
+        go = x.new_zeros((B, self.num_nodes, self.output_dim))
         
         out = []
         for t in range(self.out_steps):
@@ -394,7 +424,7 @@ class HimNet(BaseModel):
         """计算损失
         
         Args:
-            batch: 包含 'X' 和 'y' 的字典
+            batch: 'X' 和 'y' 的数值通道必须使用相同的标准化
             batches_seen: 用于 curriculum learning
         Returns:
             total_loss: 总损失
@@ -430,6 +460,8 @@ class HimNet(BaseModel):
             use_teacher_forcing=getattr(args, 'use_teacher_forcing', True),
             adj_mx=adj_mx,
             device=device,
+            time_intervals=getattr(args, 'time_intervals', 1800),
+            time_slots=getattr(args, 'himnet_time_slots', None),
         ).to(device)
 
 
@@ -437,4 +469,4 @@ if __name__ == "__main__":
     from torchinfo import summary
 
     model = HimNet(num_nodes=207).cpu()
-    summary(model, [[64, 12, 207, 3], [64, 12, 207, 2]], device="cpu")
+    summary(model, input_data={'batch': {'X': torch.zeros(1, 12, 207, 3)}})

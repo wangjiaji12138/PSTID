@@ -54,6 +54,10 @@ def create_parser():
     parser.add_argument('--time_intervals', type=int, default=1800)
     parser.add_argument('--tcn_kernel_sizes', type=int, nargs='+', default=[3])
     parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--use_teacher_forcing', type=int, choices=[0, 1], default=1,
+                        help='HimNet: enable scheduled sampling during training')
+    parser.add_argument('--tf_decay_steps', type=int, default=4000,
+                        help='HimNet: scheduled sampling decay in training batches')
 
     # ============================================================
     # 5) Prototype codebooks

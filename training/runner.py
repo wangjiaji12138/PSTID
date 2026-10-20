@@ -1,6 +1,7 @@
 """Internal experiment orchestration, invoked by the train.py CLI."""
 import os
 import gc
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 import torch
@@ -84,6 +85,17 @@ def main():
     # Get model info
     num_nodes = dataset['train']['X'].shape[2]
     adj_mx = torch.from_numpy(dataset['adj_mx']).float().to(device)
+
+    if model_name.upper() == 'HIMNET':
+        # Infer the fixed daily calendar from training time features only.
+        # Persist it in config so checkpoint reconstruction uses the same schedule.
+        if args.time_intervals <= 0 or 86400 % args.time_intervals != 0:
+            raise ValueError('time_intervals must be a positive divisor of 86400')
+        slots_per_day = 86400 // args.time_intervals
+        args.himnet_time_slots = np.unique(np.rint(
+            dataset['train']['X'][:, :, 0, 1] * slots_per_day
+        ).astype(np.int64)).tolist()
+        logger.info(f'HimNet daily time slots: {args.himnet_time_slots}')
 
     model = build_model(model_name, args, num_nodes, adj_mx, device)
 

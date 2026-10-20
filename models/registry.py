@@ -309,6 +309,8 @@ def _build_himnet(args, num_nodes, adj_mx, device):
         use_teacher_forcing=_get_arg(args, 'use_teacher_forcing', True),
         adj_mx=adj_mx_np,
         device=device,
+        time_intervals=_get_arg(args, 'time_intervals', 1800),
+        time_slots=_get_arg(args, 'himnet_time_slots', None),
     ).to(device)
 
 

@@ -21,13 +21,13 @@ MODELS=(
 
 # 数据集列表
 DATASETS=(
-    "sh"
-    "cq"
-    "hz"
-    "jl"
-    "yt"
-    "nyc_taxi"
-    "chi_taxi"
+    # "sh"
+    # "cq"
+    # "hz"
+    # "jl"
+    # "yt"
+    # "nyc_taxi"
+    # "chi_taxi"
     "nyc_bike"
 )
 
@@ -35,19 +35,24 @@ DATASETS=(
 # 记录开始时间
 START_TIME=$(date +%s)
 
-for data in "${DATASETS[@]}"; do
+SEED=(
+    "13"
+    "42"
+)
+
+for seed in "${SEED[@]}"; do
     for model in "${MODELS[@]}"; do
         echo "========================================"
-        echo "Running: python train.py --data $data --model $model"
+        echo "Running: python train.py --seed $seed --model $model --data nyc_bike"
         echo "========================================"
         
-        python train.py --data "$data" --model "$model" --epoch 100 --gpu 4
+        python train.py --seed $seed --model "$model" --epoch 100 --gpu 4 --data nyc_bike
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then
-            echo "[SUCCESS] $model on $data completed"
+            echo "[SUCCESS] $model on $seed completed"
         else
-            echo "[ERROR] $model on $data failed with exit code $EXIT_CODE"
+            echo "[ERROR] $model on $seed failed with exit code $EXIT_CODE"
         fi
         echo ""
     done

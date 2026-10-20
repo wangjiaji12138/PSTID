@@ -40,7 +40,13 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
             else:
                 # 标准模型使用标准流程
                 X_norm = normalize_input(X, scaler, input_dim)
-                output = model({'X': X_norm})  # (B, T, N, C_out)
+                if model_name.upper() == 'HIMNET':
+                    # Decoder feedback must have the same scale as predictions.
+                    y_norm = (y_raw[..., :1] - scaler.mean) / scaler.std
+                    batches_seen = epoch * len(dataloader) + n_batches
+                    output = model({'X': X_norm, 'y': y_norm}, batches_seen=batches_seen)
+                else:
+                    output = model({'X': X_norm})  # (B, T, N, C_out)
 
                 y_pred_norm = output.mean(dim=-1, keepdim=True)  # (B, T, N, 1)
                 y_pred_raw = scaler.inverse_transform(y_pred_norm) # (B, T, N, D_out)
