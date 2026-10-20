@@ -25,7 +25,7 @@ for seed in "${SEED[@]}"; do
         echo "Running: python train.py --model HimNet --seed $seed --data $data" 
         echo "========================================"
         
-        python train.py --seed $seed --model HimNet --data $data --epoch 100 --gpu 5
+        python train.py --seed $seed --model HimNet --data $data --epoch 100 --gpu 5 --input_embedding_dim 16 --num_layers 1 --tid 8 --diw 8
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then
