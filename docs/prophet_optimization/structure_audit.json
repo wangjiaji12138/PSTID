@@ -1,0 +1,39 @@
+{
+  "scope": "Random initialization, CPU eval(), seed=20261021; structural checks only, not accuracy evidence.",
+  "torch_version": "2.6.0+cu124",
+  "batch_dependence": {
+    "changed_companion_target_max_abs_difference": 1.757577896118164,
+    "duplicate_companion_target_max_abs_difference": 0.0,
+    "permuting_same_batch_max_abs_difference": 0.0,
+    "interpretation": "Batch composition matters; permutation of the same batch preserves predictions."
+  },
+  "cross_node_observation_path": {
+    "perturbation": "Add 100 only to historical flow at node 1; keep calendars and target node 0 unchanged.",
+    "target_node_0_max_abs_difference": 0.0,
+    "perturbed_node_1_max_abs_difference": 229.4418182373047,
+    "interpretation": "Current operations transmit no other-node current observations to a target node. Static learned graph identity remains present."
+  },
+  "broadcast_time_axis": {
+    "max_abs_differences_from_first_slice": {
+      "hidden": 0.0,
+      "history": 0.0,
+      "tid": 0.0,
+      "diw": 0.0,
+      "prototype_enhancement": 0.0
+    },
+    "one_slice_eval_prediction_max_abs_difference": 0.0,
+    "interpretation": "Internal time slices are copies. Forecast horizons still use distinct regression output channels. Training dropout has independent masks; this check establishes eval equivalence only."
+  },
+  "temporal_router_spatial_identity": {
+    "explicit_spatial_identity_change_temporal_weights_max_abs_difference": 0.0,
+    "explicit_spatial_identity_change_spatial_weights_max_abs_difference": 0.3272102177143097,
+    "explicit_spatial_identity_change_prediction_max_abs_difference": 7.815761566162109,
+    "interpretation": "The temporal router lacks explicit node/graph/spatial-prototype inputs. Own-node history can still carry spatial information, and the downstream MLP can learn joint effects."
+  },
+  "conditional_relation_algebra": {
+    "zero_initialized_relation_router_max_abs_difference": 0.0,
+    "uniform_spatial_assignment_double_centered_relation_max_abs_effect": 1.2783181091435836e-07,
+    "interpretation": "A zero C preserves the current router. Identical C rows are an existing temporal-logit bias; rowwise constants cancel in softmax. Double centering removes both redundancies.",
+    "fair_controls": "Keep backbone and both query projections identical for Q-only, Q+S, Q+T, Q+S+T, and Q+S+T+C. Also compare concat or a matched-budget identity-conditioned allocator: improvements from extra parameters or identity input alone do not establish a unique benefit of prototype relations."
+  }
+}

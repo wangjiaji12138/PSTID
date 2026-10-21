@@ -217,6 +217,12 @@ def _build_prophet(args, num_nodes, adj_mx, device):
     return PROPHET.from_args(args, num_nodes, adj_mx, device).to(device)
 
 
+def _build_pstid(args, num_nodes, adj_mx, device):
+    """Build the independent PSTID development copy of PROPHET."""
+    from .PSTID.model import PSTID
+    return PSTID.from_args(args, num_nodes, adj_mx, device).to(device)
+
+
 def _build_dcrnn(args, num_nodes, adj_mx, device):
     """Build DCRNN model."""
     from models.DCRNN.DCRNN import DCRNN
@@ -354,6 +360,7 @@ MODEL_REGISTRY = {
     "STDN": _build_stdn,
     "STID": _build_stid,
     "PROPHET": _build_prophet,
+    "PSTID": _build_pstid,
     "DCRNN": _build_dcrnn,
     "STSSL": _build_stssl,
     "STSSDL": _build_stssdl,

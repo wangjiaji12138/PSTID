@@ -1,0 +1,684 @@
+{
+  "scope": "Existing data and source-code audit; no model performance claim.",
+  "source_contract": {
+    "chronological_split": "data_pipeline/dataset.py:39-65",
+    "sequential_dataloaders": "data_pipeline/loaders.py:31-33; shuffle defaults to False",
+    "sliding_windows": "data_pipeline/npz.py:180-188; data_pipeline/grid.py:182-187",
+    "cross_sample_history_aggregation": "models/PROPHET/spatial.py:93-105",
+    "calendar_index_conversion": "models/PROPHET/model.py:191,196; data_pipeline/dataset.py:103",
+    "training_loss": "training/engine.py:56; utils/metrics.py:13-29",
+    "evaluation_masks": "training/engine.py:123; utils/metrics.py:22,69-70"
+  },
+  "default_batch_future_information_path": {
+    "batch_size": 64,
+    "input_window": 24,
+    "output_window": 24,
+    "stride": 1,
+    "zero_based_batch_indices_with_complete_target_present_in_later_input": [
+      0,
+      39
+    ],
+    "number_of_such_samples": 40,
+    "equality": "X[i + 24, :, :, 0] == y[i, :, :, 0]",
+    "derivation": "For i=0..39, i+24 remains inside a 64-sample batch. Later inputs enter the shared spatial query through the batch mean of history embeddings.",
+    "qualification": "Existence of a future-information path is established; its effect on trained-model metrics is not measured by this script."
+  },
+  "datasets": {
+    "cq": {
+      "source": "data/processed/cq/all.npz",
+      "x_shape": [
+        4737,
+        24,
+        137,
+        3
+      ],
+      "y_shape": [
+        4737,
+        24,
+        137,
+        1
+      ],
+      "sample_counts": {
+        "all": 4737,
+        "train": 2842,
+        "val": 947,
+        "test": 948
+      },
+      "within_split_window_checks": {
+        "train": {
+          "sample_index": 0,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "val": {
+          "sample_index": 2842,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "test": {
+          "sample_index": 3789,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        }
+      },
+      "split_boundaries": {
+        "train_val": {
+          "left_sample_index": 2841,
+          "right_sample_index": 2842,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        },
+        "val_test": {
+          "left_sample_index": 3788,
+          "right_sample_index": 3789,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        }
+      },
+      "calendar_float32_index_audit": {
+        "time_of_day": {
+          "embedding_size": 48,
+          "observed_indices": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        },
+        "day_of_week": {
+          "embedding_size": 7,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        }
+      },
+      "targets_all_windows": {
+        "count": 15575256,
+        "nonfinite_count": 0,
+        "nan_count": 0,
+        "negative_count": 0,
+        "zero_count": 11120379,
+        "zero_fraction": 0.7139772855097856,
+        "minimum": 0.0,
+        "maximum": 92.0,
+        "train_mae_and_eval_mae_mask_difference_count": 0,
+        "mape_eligible_count": 4454877
+      }
+    },
+    "hz": {
+      "source": "data/processed/hz/all.npz",
+      "x_shape": [
+        4737,
+        24,
+        112,
+        3
+      ],
+      "y_shape": [
+        4737,
+        24,
+        112,
+        1
+      ],
+      "sample_counts": {
+        "all": 4737,
+        "train": 2842,
+        "val": 947,
+        "test": 948
+      },
+      "within_split_window_checks": {
+        "train": {
+          "sample_index": 0,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "val": {
+          "sample_index": 2842,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "test": {
+          "sample_index": 3789,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        }
+      },
+      "split_boundaries": {
+        "train_val": {
+          "left_sample_index": 2841,
+          "right_sample_index": 2842,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        },
+        "val_test": {
+          "left_sample_index": 3788,
+          "right_sample_index": 3789,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        }
+      },
+      "calendar_float32_index_audit": {
+        "time_of_day": {
+          "embedding_size": 48,
+          "observed_indices": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        },
+        "day_of_week": {
+          "embedding_size": 7,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        }
+      },
+      "targets_all_windows": {
+        "count": 12733056,
+        "nonfinite_count": 0,
+        "nan_count": 0,
+        "negative_count": 0,
+        "zero_count": 7595961,
+        "zero_fraction": 0.5965544328085889,
+        "minimum": 0.0,
+        "maximum": 139.0,
+        "train_mae_and_eval_mae_mask_difference_count": 0,
+        "mape_eligible_count": 5137095
+      }
+    },
+    "nyc_taxi": {
+      "source": "data/processed/nyc_taxi/all.npz",
+      "x_shape": [
+        26209,
+        24,
+        263,
+        3
+      ],
+      "y_shape": [
+        26209,
+        24,
+        263,
+        1
+      ],
+      "sample_counts": {
+        "all": 26209,
+        "train": 15725,
+        "val": 5242,
+        "test": 5242
+      },
+      "within_split_window_checks": {
+        "train": {
+          "sample_index": 0,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "val": {
+          "sample_index": 15725,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "test": {
+          "sample_index": 20967,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        }
+      },
+      "split_boundaries": {
+        "train_val": {
+          "left_sample_index": 15724,
+          "right_sample_index": 15725,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        },
+        "val_test": {
+          "left_sample_index": 20966,
+          "right_sample_index": 20967,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        }
+      },
+      "calendar_float32_index_audit": {
+        "time_of_day": {
+          "embedding_size": 48,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        },
+        "day_of_week": {
+          "embedding_size": 7,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        }
+      },
+      "targets_all_windows": {
+        "count": 165431208,
+        "nonfinite_count": 0,
+        "nan_count": 0,
+        "negative_count": 0,
+        "zero_count": 58144681,
+        "zero_fraction": 0.3514734716801439,
+        "minimum": 0.0,
+        "maximum": 1162.0,
+        "train_mae_and_eval_mae_mask_difference_count": 0,
+        "mape_eligible_count": 107286527
+      }
+    },
+    "chi_taxi": {
+      "source": "data/processed/chi_taxi/all.npz",
+      "x_shape": [
+        17473,
+        24,
+        77,
+        3
+      ],
+      "y_shape": [
+        17473,
+        24,
+        77,
+        1
+      ],
+      "sample_counts": {
+        "all": 17473,
+        "train": 10484,
+        "val": 3495,
+        "test": 3494
+      },
+      "within_split_window_checks": {
+        "train": {
+          "sample_index": 0,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "val": {
+          "sample_index": 10484,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "test": {
+          "sample_index": 13979,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        }
+      },
+      "split_boundaries": {
+        "train_val": {
+          "left_sample_index": 10483,
+          "right_sample_index": 10484,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        },
+        "val_test": {
+          "left_sample_index": 13978,
+          "right_sample_index": 13979,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        }
+      },
+      "calendar_float32_index_audit": {
+        "time_of_day": {
+          "embedding_size": 48,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        },
+        "day_of_week": {
+          "embedding_size": 7,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        }
+      },
+      "targets_all_windows": {
+        "count": 32290104,
+        "nonfinite_count": 0,
+        "nan_count": 0,
+        "negative_count": 0,
+        "zero_count": 17440889,
+        "zero_fraction": 0.5401310878404108,
+        "minimum": 0.0,
+        "maximum": 253.0,
+        "train_mae_and_eval_mae_mask_difference_count": 0,
+        "mape_eligible_count": 14849215
+      }
+    },
+    "nyc_bike": {
+      "source": "data/processed/nyc_bike/all.npz",
+      "x_shape": [
+        17473,
+        24,
+        72,
+        3
+      ],
+      "y_shape": [
+        17473,
+        24,
+        72,
+        1
+      ],
+      "sample_counts": {
+        "all": 17473,
+        "train": 10484,
+        "val": 3495,
+        "test": 3494
+      },
+      "within_split_window_checks": {
+        "train": {
+          "sample_index": 0,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "val": {
+          "sample_index": 10484,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        },
+        "test": {
+          "sample_index": 13979,
+          "next_sample_last_input_equals_first_target": true,
+          "sample_plus_24_input_equals_entire_target": true,
+          "first_40_targets_equal_inputs_24_to_63_in_same_batch": true
+        }
+      },
+      "split_boundaries": {
+        "train_val": {
+          "left_sample_index": 10483,
+          "right_sample_index": 10484,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        },
+        "val_test": {
+          "left_sample_index": 13978,
+          "right_sample_index": 13979,
+          "adjacent_target_overlap_steps": 23,
+          "left_target_except_first_equals_right_target_except_last": true
+        }
+      },
+      "calendar_float32_index_audit": {
+        "time_of_day": {
+          "embedding_size": 48,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        },
+        "day_of_week": {
+          "embedding_size": 7,
+          "observed_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "truncation_vs_nearest_integer_mismatches": 0,
+          "max_distance_from_integer": 0.0,
+          "out_of_range_count": 0
+        }
+      },
+      "targets_all_windows": {
+        "count": 30193344,
+        "nonfinite_count": 0,
+        "nan_count": 0,
+        "negative_count": 0,
+        "zero_count": 13253801,
+        "zero_fraction": 0.4389643293568278,
+        "minimum": 0.0,
+        "maximum": 298.0,
+        "train_mae_and_eval_mae_mask_difference_count": 0,
+        "mape_eligible_count": 16939543
+      }
+    }
+  }
+}

@@ -93,6 +93,9 @@ def load_results(dataset: str) -> dict[str, dict]:
 
         with open(config_path) as f:
             config = json.load(f)
+        # Historical PSTID names remain aliases; the independent fork does not.
+        if config.get("model_variant", "").startswith("pstid_fork_"):
+            continue
         if not config.get("use_proto", True) and config.get("proto_ablation") != "direct_embeddings_mlp":
             print(f"  [警告] {dataset}/{exp_dir.name} 缺少当前直接输入 MLP 的实验标记，"
                   "不纳入 w/o P 对照，请重新训练 --use_proto 0")

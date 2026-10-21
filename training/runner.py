@@ -28,6 +28,10 @@ def main():
     args.use_temporal = bool(args.use_temporal)
     args.use_his = bool(args.use_his)
 
+    # Distinguish the new fork from historical experiments named PSTID.
+    if args.model.upper() == 'PSTID':
+        args.model_variant = 'pstid_fork_v0'
+
     # Validate model against the shared registry
     if args.model.upper() not in MODEL_LIST:
         raise ValueError(f"Unknown model '{args.model}'. Available: {MODEL_LIST}")
