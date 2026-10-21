@@ -14,7 +14,7 @@ MODELS=(
     "STNorm"
     "STSSL"
     "STSSDL"
-    "HimNet"
+    # "HimNet"
     "PROPHET"
 )
 
@@ -23,9 +23,9 @@ MODELS=(
 DATASETS=(
     # "cq"
     # "hz"
-    # "nyc_taxi"
+    "nyc_taxi"
     # "chi_taxi"
-    "nyc_bike"
+    # "nyc_bike"
 )
 
 
@@ -35,15 +35,16 @@ START_TIME=$(date +%s)
 SEED=(
     "13"
     "42"
+    "88"
 )
 
 for seed in "${SEED[@]}"; do
     for model in "${MODELS[@]}"; do
         echo "========================================"
-        echo "Running: python train.py --seed $seed --model $model --data nyc_bike"
+        echo "Running: python train.py --seed $seed --model $model --data nyc_taxi"
         echo "========================================"
         
-        python train.py --seed $seed --model "$model" --epoch 100 --gpu 4 --data nyc_bike
+        python train.py --seed $seed --model "$model" --epoch 100 --gpu 4 --data nyc_taxi --input_embedding_dim 16 --num_layers 1
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then

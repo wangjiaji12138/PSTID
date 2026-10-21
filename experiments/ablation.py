@@ -7,7 +7,7 @@ PROPHET Ablation Analysis Script
 
 每个数据集的完整单项消融包含以下 6 种配置（未列出的开关均为 True）：
   1. Full          (proto=T, spatio=T, temporal=T, adj=T)
-  2. Linear        (proto=F, spatio=T, temporal=T, adj=T；Linear→Softmax→Linear 替代原型分配)
+  2. w/o P         (proto=F；去掉整个原型模块，embeddings 直接输入 MLP)
   3. -Spatio       (proto=T, spatio=F, temporal=T, adj=T)
   4. -Temporal     (proto=T, spatio=T, temporal=F, adj=T)
   5. -Adj          (proto=T, spatio=T, temporal=T, adj=F)
@@ -26,7 +26,7 @@ OUTPUT_MD = PROJECT_ROOT / "abl_prophet.md"
 # 实验标记 → 人类可读名称
 ABL_LABELS = {
     "full":          "Full",
-    "minus_proto":   "Linear-Softmax-Linear",
+    "minus_proto":   "w/o P",
     "minus_spatio":  "-Spatio",
     "minus_temporal":"-Temporal",
     "minus_adj":     "-Adj",
@@ -93,9 +93,9 @@ def load_results(dataset: str) -> dict[str, dict]:
 
         with open(config_path) as f:
             config = json.load(f)
-        if not config.get("use_proto", True) and config.get("proto_ablation") != "linear_softmax_linear_no_query_residual":
-            print(f"  [警告] {dataset}/{exp_dir.name} 是旧版 use_proto=0 实验（带 Query 残差、删除分支或单 Linear），"
-                  "不纳入 Linear-Softmax-Linear 对照，请重新训练 --use_proto 0")
+        if not config.get("use_proto", True) and config.get("proto_ablation") != "direct_embeddings_mlp":
+            print(f"  [警告] {dataset}/{exp_dir.name} 缺少当前直接输入 MLP 的实验标记，"
+                  "不纳入 w/o P 对照，请重新训练 --use_proto 0")
             continue
         with open(metrics_path) as f:
             metrics = json.load(f)
@@ -161,7 +161,7 @@ def main():
     lines.append("| 标记 | 含义 | 验证假设 |")
     lines.append("|------|------|---------|")
     lines.append("| Full | 全部组件启用 | 基准性能 |")
-    lines.append("| Linear-Softmax-Linear | 输入先映射到原型数量维度，经 Softmax 后映射回特征维度，保留 Query 残差及融合 | 原型分配相对此映射结构的效果 |")
+    lines.append("| w/o P | 去掉整个原型模块，拼接后的 embeddings 直接输入 MLP | 整个原型模块的作用 |")
     lines.append("| -Spatio | 关闭空间码本 | 空间码本的作用 |")
     lines.append("| -Temporal | 关闭时间码本 | 时间码本的作用 |")
     lines.append("| -Adj | 关闭 adj 矩阵衍生的空间嵌入 | 图结构信息的作用 |")
@@ -222,11 +222,11 @@ def main():
 
     lines.append("")
 
-    # ---- 3. 线性替换与单组件消融的变化对比（ΔMAE）----
-    lines.append("## 线性替换与单组件消融的变化对比（ΔMAE）\n")
+    # ---- 3. 整个原型模块与单组件消融的变化对比（ΔMAE）----
+    lines.append("## 整个原型模块与单组件消融的变化对比（ΔMAE）\n")
     lines.append(
-        "| 数据集 | ΔSpatio | ΔTemporal | ΔAdj | S+T+A 简单加和 | ΔLinear | "
-        "Linear/(S+T+A) 比值 |"
+        "| 数据集 | ΔSpatio | ΔTemporal | ΔAdj | S+T+A 简单加和 | ΔP | "
+        "P/(S+T+A) 比值 |"
     )
     lines.append(
         "|--------|--------:|----------:|------:|---------------:|-------:|"
@@ -266,7 +266,7 @@ def main():
     # ---- 4. 结论分析 ----
     lines.append("## 结论与分析\n")
     lines.append("### 假设验证\n")
-    lines.append("1. **原型分配效果**：通过比较 Full 与 Linear-Softmax-Linear 的性能差异，检验原型分配相对 Linear→Softmax→Linear 的收益")
+    lines.append("1. **原型模块效果**：通过比较 Full 与 w/o P 的性能差异，检验整个原型模块的收益")
     lines.append("2. **空间码本作用**：通过比较 Full 与 -Spatio 的性能差异，验证空间码本对节点嵌入的归类效果")
     lines.append("3. **时间码本作用**：通过比较 Full 与 -Temporal 的性能差异，验证时间码本对时间嵌入的归类效果")
     lines.append("4. **图结构信息作用**：通过比较 Full 与 -Adj 的性能差异，验证 adj 矩阵衍生的空间嵌入是否有效")
@@ -274,14 +274,14 @@ def main():
 
     lines.append("### 预期结果\n")
     lines.append("- **Full 应优于 STID**：原型模块应能减少原始嵌入中的噪声")
-    lines.append("- **Full 与 Linear-Softmax-Linear 对照**：由重新训练的指标判断两种分配结构的效果是否相同")
+    lines.append("- **Full 与 w/o P 对照**：由重新训练的指标判断原型增强的效果")
     lines.append("- **Spatio + Temporal 应接近 Full**：两个码本的联合效果应接近完整的原型模块\n")
 
     lines.append("说明：\n")
     lines.append("- MAE/RMSE/MAPE/SMAPE 的正值表示消融后性能下降（变差）\n")
     lines.append("- R² 的负值表示消融后拟合质量变差\n")
-    lines.append("- Linear/(S+T+A) 仅作描述性比较：线性替换与关闭组件是不同操作，不能将此比值直接解释为贡献加和性")
-    lines.append("- 表中 Linear 指 Linear→Softmax→Linear，中间维度为对应原型数量；不保证参数量相等，旧版删除分支及单 Linear 的结果不纳入此对照")
+    lines.append("- P/(S+T+A) 仅作描述性比较：去掉整个原型模块与关闭单个组件是不同操作，不能将此比值直接解释为贡献加和性")
+    lines.append("- 表中 w/o P 指 embeddings 直接输入 MLP；仅纳入带 direct_embeddings_mlp 标记的实验，旧版结果需重新训练")
 
     # ========== 写入文件 ==========
     content = "\n".join(lines)

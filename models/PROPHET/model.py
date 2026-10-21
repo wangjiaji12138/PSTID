@@ -123,27 +123,30 @@ class PROPHET(BaseModel):
                 nn.init.xavier_uniform_(self.adj_mx_emb)
 
         # ==================== ProtoModule ====================
-        self.proto_module = ProtoModule(
-            num_nodes=self.num_nodes,
-            proto_dim=self.proto_dim,
-            n_spatial=self.num_spatial_prototypes,
-            n_temporal=self.num_temporal_prototypes,
-            use_spatio=self.use_spatio,
-            use_temporal=self.use_temporal,
-            use_his=self.use_his,
-            use_proto=self.use_proto,
-            proto_temp=self.proto_temperature,
-            adj_mx_emb_dim=self.adj_mx_emb_dim,
-            spatial_emb_dim=self.spatial_emb_dim,
-            use_adj=self.use_adj,
-            time_series_dim=self.time_series_emb_dim,
-            time_of_day_size=self.time_of_day_size,
-            day_of_week_size=self.day_of_week_size,
-            temp_dim_tid=self.temp_dim_tid,
-            temp_dim_diw=self.temp_dim_diw,
-            proto_emb_dim=self.proto_emb_dim,
-            hidden_dim=self.hidden_dim,  # 传入 hidden_dim 用于 proto_out_proj
-        )
+        # w/o P：不创建增强分支，拼接后的 embeddings 直接输入 MLP。
+        self.proto_module = None
+        if self.use_proto:
+            self.proto_module = ProtoModule(
+                num_nodes=self.num_nodes,
+                proto_dim=self.proto_dim,
+                n_spatial=self.num_spatial_prototypes,
+                n_temporal=self.num_temporal_prototypes,
+                use_spatio=self.use_spatio,
+                use_temporal=self.use_temporal,
+                use_his=self.use_his,
+                use_proto=self.use_proto,
+                proto_temp=self.proto_temperature,
+                adj_mx_emb_dim=self.adj_mx_emb_dim,
+                spatial_emb_dim=self.spatial_emb_dim,
+                use_adj=self.use_adj,
+                time_series_dim=self.time_series_emb_dim,
+                time_of_day_size=self.time_of_day_size,
+                day_of_week_size=self.day_of_week_size,
+                temp_dim_tid=self.temp_dim_tid,
+                temp_dim_diw=self.temp_dim_diw,
+                proto_emb_dim=self.proto_emb_dim,
+                hidden_dim=self.hidden_dim,  # 传入 hidden_dim 用于 proto_out_proj
+            )
 
         # ==================== MLP Layers ====================
         self.encoder = nn.Sequential(

@@ -54,9 +54,9 @@ def create_parser():
     parser.add_argument('--time_intervals', type=int, default=1800)
     parser.add_argument('--tcn_kernel_sizes', type=int, nargs='+', default=[3])
     parser.add_argument('--dropout', type=float, default=0.1)
-    parser.add_argument('--use_teacher_forcing', type=int, choices=[0, 1], default=1,
+    parser.add_argument('--use_teacher_forcing', type=int, choices=[0, 1], default=0,
                         help='HimNet: enable scheduled sampling during training')
-    parser.add_argument('--tf_decay_steps', type=int, default=4000,
+    parser.add_argument('--tf_decay_steps', type=int, default=2,
                         help='HimNet: scheduled sampling decay in training batches')
 
     # ============================================================
@@ -73,9 +73,9 @@ def create_parser():
     # 6) Ablation switches (0=off, 1=on)
     # ============================================================
     parser.add_argument('--use_proto', type=int, choices=[0, 1], default=1,
-                        help='增强分支类型（0=Linear→Softmax→Linear（无 Query 残差），1=原型分配）')
-    # 区分旧版带 Query 残差、删除整个分支或单 Linear 的 use_proto=0 实验。
-    parser.set_defaults(proto_ablation='linear_softmax_linear_no_query_residual')
+                        help='原型模块开关（0=embeddings 直接输入 MLP，1=启用原型模块）')
+    # 区分直接输入 MLP 与旧版线性替换等 use_proto=0 实验。
+    parser.set_defaults(proto_ablation='direct_embeddings_mlp')
     parser.add_argument('--use_spatio', type=int, default=1)
     parser.add_argument('--use_temporal', type=int, default=1)
     parser.add_argument('--use_his', type=int, choices=[0, 1], default=1,

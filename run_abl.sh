@@ -23,9 +23,6 @@ ABL=(
 DATASETS=(
     "cq"
     "hz"
-    # "jl"
-    # "sh"
-    # "yt"
     "chi_taxi"
     "nyc_taxi"
     "nyc_bike"
@@ -65,7 +62,7 @@ for data in "${DATASETS[@]}"; do
         echo "Ablation: $abl = 0"
         echo "----------------------------------------"
 
-        python train.py --data $data --model $MODEL_UPPER --$abl 0 --epochs $EPOCHS --gpu $GPU
+        python train.py --data $data --model $MODEL_UPPER --$abl 0 --epochs $EPOCHS --gpu $GPU --results_dir /results_88/
 
         EXIT_CODE=$?
 

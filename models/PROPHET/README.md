@@ -49,7 +49,7 @@ X: (B, T_in, N, 3)
 
 | 参数 | 作用 |
 | --- | --- |
-| `use_proto` | 1：原型分配；0：用 Linear→Softmax→Linear 替代原型分配，保留增强分支 |
+| `use_proto` | 1：启用原型模块；0：去掉整个原型模块，embeddings 直接输入 MLP |
 | `use_spatio` | 是否启用空间码本 |
 | `use_temporal` | 是否启用时间基 |
 | `use_adj` | 是否使用图嵌入；关闭后空间码本使用节点嵌入 |
@@ -57,9 +57,9 @@ X: (B, T_in, N, 3)
 
 这些参数与训练 CLI 的同名开关对应。完整模型及未改变含义的单项消融保留原有数值回归基准。
 
-`--use_proto 0` 使用 `Linear → Softmax(dim=-1) → Linear` 对照：空间分支将 Query 投影后的特征从 `D_proto` 映射到 `num_spatial_prototypes` 维，Softmax 后再映射回 `D_proto`；时间分支将原分配器的拼接输入从 `D_input` 映射到 `num_temporal_prototypes` 维，Softmax 后再映射回 `D_proto`。两次 Linear 均带 bias，Softmax 直接作用于第一层输出（不额外使用温度缩放）。两条分支均不创建独立原型表，不叠加 Query 投影残差，保留广播方式、融合输出投影及主干。空间 Query 投影仍作为 Linear–Softmax–Linear 的输入；时间 Query 投影保留参数以兼容 state_dict，但不参与融合或接收训练梯度。`use_spatio`、`use_temporal`、`use_adj`、`use_his` 仍控制对应分支或输入。这里匹配的是替换位置的输入输出维度和分配维度，不是参数量或数学功能。
+`--use_proto 0`（w/o P）不创建 `ProtoModule`，不执行空间/时间码本、Query 投影或融合输出投影。时间序列、TID、DIW、节点及可选的邻接嵌入拼接后，直接输入 MLP encoder 和回归层。`use_adj` 仍控制邻接嵌入是否参与拼接；`use_spatio`、`use_temporal`、`use_his` 在此模式下不影响前向计算。
 
-训练配置及检查点保存 `proto_ablation="linear_softmax_linear_no_query_residual"` 标记，汇总显示为 `Linear-Softmax-Linear`。旧版带 Query 残差、删除整个增强分支、以及单 Linear 的 `use_proto=0` 结果均会被汇总脚本跳过，需要重新训练；带 Query 残差版本的参数仍可加载，但前向语义已改变，不能沿用其指标；更早版本的参数结构也不兼容。`use_proto=1` 的参数结构与计算保持不变。
+训练配置及检查点保存 `proto_ablation="direct_embeddings_mlp"` 标记，汇总显示为 `w/o P`。汇总仅纳入带此标记的 `use_proto=0` 实验，避免混用旧版 Linear→Softmax→Linear 等实现的指标；旧实验需要重新训练。`use_proto=1` 的参数结构与计算保持不变。
 
 `--use_his 0`（Python 中为 `use_his=False`）时，时间原型的分配器与 Query 投影只输入 `tid_emb + diw_emb`；空间原型只输入 `adj_mx_emb`，若同时设置 `--use_adj 0` 则使用 `node_emb`。相应输入层维度随之缩小，主干仍使用历史序列嵌入。批量消融和结果汇总将此配置标记为 `-His`。旧配置未指定 `use_his` 时默认开启，保留原有模型行为。
 
