@@ -41,8 +41,8 @@ class PSTID(BaseModel):
                  adj_mx_emb_dim: int = 64,
                  adj_mx: torch.Tensor = None,
                  use_his: bool = True, time_slots=None,
-                 use_time_interaction: bool = False,
-                 use_proto_change: bool = False, proto_change_context: str = "encoded"):
+                 use_time_interaction: bool = True,
+                 use_proto_change: bool = True, proto_change_context: str = "encoded"):
         super().__init__()
 
         # ==================== STID 基础参数 ====================
@@ -360,9 +360,9 @@ class PSTID(BaseModel):
             use_spatio=_get_arg(args, 'use_spatio', True),
             use_temporal=_get_arg(args, 'use_temporal', True),
             use_his=_get_arg(args, 'use_his', True),
-            use_time_interaction=bool(_get_arg(args, 'use_time_interaction', False)),
-            use_proto_change=bool(_get_arg(args, 'use_proto_change', False)),
-            proto_change_context=_get_arg(args, 'proto_change_context', 'raw'),
+            use_time_interaction=bool(_get_arg(args, 'use_time_interaction', True)),
+            use_proto_change=bool(_get_arg(args, 'use_proto_change', True)),
+            proto_change_context=_get_arg(args, 'proto_change_context', 'encoded'),
             # 新增参数
             proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
             # adj_mx 衍生的可学习节点嵌入维度

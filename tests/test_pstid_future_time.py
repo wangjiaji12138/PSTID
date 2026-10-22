@@ -240,3 +240,21 @@ def test_change_readout_disabled_without_temporal_prototypes(options):
     model = make_model(use_proto_change=True, **options)
     assert model.proto_change_readout is None
     assert model({'X': history()}).shape == (2, 5, 2, 1)
+
+
+def test_new_features_enabled_by_default_and_can_be_disabled():
+    from training.config import create_parser
+
+    args = create_parser().parse_args([])
+    assert args.use_time_interaction == 1
+    assert args.use_proto_change == 1
+    assert args.proto_change_context == 'encoded'
+    for model in [PSTID(num_nodes=2, use_adj=False),
+                  PSTID.from_args({'use_adj': False}, 2, None, torch.device('cpu'))]:
+        assert model.proto_module.temporal_basis.use_time_interaction
+        assert model.proto_change_readout is not None
+        assert model.proto_change_context == 'encoded'
+    disabled = PSTID.from_args({'use_adj': False, 'use_time_interaction': 0,
+                                'use_proto_change': 0}, 2, None, torch.device('cpu'))
+    assert not disabled.proto_module.temporal_basis.use_time_interaction
+    assert disabled.proto_change_readout is None

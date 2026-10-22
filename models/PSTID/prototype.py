@@ -32,7 +32,7 @@ class ProtoModule(nn.Module):
                  use_adj: bool = True,
                  use_his: bool = True,
                  use_proto: bool = True,
-                 use_time_interaction: bool = False):
+                 use_time_interaction: bool = True):
         super().__init__()
 
         self.n_spatial, self.n_temporal = n_spatial, n_temporal

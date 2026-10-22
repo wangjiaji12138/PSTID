@@ -20,7 +20,7 @@ class TemporalBasis(nn.Module):
                  time_series_dim: int = None, time_of_day_size: int = None, day_of_week_size: int = None,
                  temp_dim_tid: int = None, temp_dim_diw: int = None,
                  use_his: bool = True, use_proto: bool = True,
-                 use_time_interaction: bool = False):
+                 use_time_interaction: bool = True):
         super().__init__()
         self.num_protos = num_protos
         # 如果没有提供 proto_emb_dim，则使用 time_series_dim

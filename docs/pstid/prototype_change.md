@@ -57,3 +57,7 @@ python train.py --model PSTID --data cq --use_time_interaction 0 --use_proto_cha
 ```
 
 完整验证轨迹见 `prototype_change_encoded_seed88.json`、`prototype_change_encoded_seed42.json`。本轮共比较了两个设计（raw、encoded），不是在独立测试集上确认的泛化收益。
+
+## 当前默认配置
+
+按用户要求，时间交互 `use_time_interaction=1` 和原型差值修正 `use_proto_change=1` 均默认开启，`proto_change_context=encoded`。命令行、直接构造模型和 `from_args` 缺省值一致；上文默认关闭的说明为实验阶段策略，已由此配置替代。需要复现旧版或做消融时显式传入对应开关为 0。上述实验结果为分别启用各分支的对照，不代表两者同时开启的实测结果。
