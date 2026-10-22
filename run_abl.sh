@@ -7,9 +7,6 @@
 #   bash run_abl.sh     
 # ============================================================
 
-MODEL=${1:-prophet}
-MODEL=${MODEL,,}
-
 # 消融实验开关列表
 ABL=(
     "use_proto"
@@ -31,24 +28,15 @@ DATASETS=(
 GPU=2
 EPOCHS=100
 
-# 验证模型名称
-if [[ "$MODEL" != "prophet" ]]; then
-    echo "[ERROR] 未知模型: $MODEL"
-    echo "使用方法: bash run_abl.sh [prophet]"
-    exit 1
-fi
-
-MODEL_UPPER=$(echo "$MODEL" | tr '[:lower:]' '[:upper:]')
-
 # 记录开始时间
 START_TIME=$(date +%s)
 
 for data in "${DATASETS[@]}"; do
     echo "========================================"
-    echo "Running: python train.py --data $data --model $MODEL_UPPER (Full)"
+    echo "Running: python train.py --data $data --model PSTID (Full)"
     echo "========================================"
 
-    python train.py --data $data --model $MODEL_UPPER --epochs $EPOCHS --gpu $GPU
+    python train.py --data $data --model PSTID --epochs $EPOCHS --gpu $GPU
     FULL_EXIT=$?
 
     if [ $FULL_EXIT -ne 0 ]; then
@@ -62,7 +50,7 @@ for data in "${DATASETS[@]}"; do
         echo "Ablation: $abl = 0"
         echo "----------------------------------------"
 
-        python train.py --data $data --model $MODEL_UPPER --$abl 0 --epochs $EPOCHS --gpu $GPU --results_dir results/
+        python train.py --data $data --model PSTID --$abl 0 --epochs $EPOCHS --gpu $GPU --results_dir results/
 
         EXIT_CODE=$?
 

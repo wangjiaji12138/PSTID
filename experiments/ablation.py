@@ -20,7 +20,7 @@ from pathlib import Path
 from utils.paths import PROJECT_ROOT
 
 # ========== 配置 ==========
-RESULTS_ROOT = PROJECT_ROOT / "results_all"
+RESULTS_ROOT = PROJECT_ROOT / "results"
 OUTPUT_MD = PROJECT_ROOT / "abl_prophet.md"
 
 # 实验标记 → 人类可读名称
@@ -40,7 +40,7 @@ METRICS = ["MAE", "RMSE", "MAPE", "SMAPE", "R2"]
 DATASETS = ["chi_taxi", "cq", "hz", "nyc_taxi", "nyc_bike"]
 
 # 报告使用当前名称；实验目录兼容更名前后的名称。
-MODEL_NAME = "PROPHET"
+MODEL_NAME = "PSTID"
 MODEL_ALIASES = (MODEL_NAME, "PSTID")
 
 # ========== 辅助函数 ==========
