@@ -12,14 +12,15 @@ class TemporalBasis(nn.Module):
     来引导的注意力来生成每个时刻不同的身份。
 
     注意力计算（使用 MLP 直接预测分配权重）：
-        1. 输入 = tid_emb + diw_emb，use_his=True 时额外拼接 time_series_emb
-        2. MLP 直接预测每个原型的分配权重
+        1. 输入 = 每个位置自身的 tid_emb、diw_emb（历史末步与全部未来步沿时间轴拼接），use_his=True 时额外拼接 time_series_emb
+        2. MLP 预测基础分配，未来步叠加时间对关系与历史原型转移偏好
     """
 
     def __init__(self, num_protos: int, proto_emb_dim: int = None, temp: float = 0.1,
                  time_series_dim: int = None, time_of_day_size: int = None, day_of_week_size: int = None,
                  temp_dim_tid: int = None, temp_dim_diw: int = None,
-                 use_his: bool = True, use_proto: bool = True):
+                 use_his: bool = True, use_proto: bool = True,
+                 use_time_interaction: bool = False):
         super().__init__()
         self.num_protos = num_protos
         # 如果没有提供 proto_emb_dim，则使用 time_series_dim
@@ -59,47 +60,51 @@ class TemporalBasis(nn.Module):
             nn.Linear(in_dim * 2, self.proto_emb_dim),
         )
 
-    def forward(self, time_series_emb: torch.Tensor, tid_emb: torch.Tensor = None, diw_emb: torch.Tensor = None) -> tuple:
-        """时间基前向传播：使用 MLP 直接预测原型分配权重
+        # 只作用于未来分配：时间对关系 + 当前原型到目标原型的转移偏好。
+        # 零初始化使加载上一版权重后的初始函数保持不变。
+        self.use_time_interaction = use_time_interaction and use_proto
+        if self.use_time_interaction:
+            calendar_dim = self.temp_dim_tid + self.temp_dim_diw
+            # 不消耗主模型初始化的随机流，开关对照可使用相同种子。
+            with torch.random.fork_rng(devices=[]):
+                self.calendar_interaction = nn.Linear(3 * calendar_dim, num_protos, bias=False)
+            nn.init.zeros_(self.calendar_interaction.weight)
+            self.prototype_transition = nn.Parameter(torch.zeros(num_protos, num_protos))
 
-        Args:
-            time_series_emb: 时间序列嵌入 (B, T, N, D_time_series)，use_his=False 时仅取形状
-            tid_emb: 主模型的时间嵌入 (B, T, N, D_tid) - 代表最后一个历史时间的嵌入
-            diw_emb: 主模型的星期嵌入 (B, T, N, D_diw) - 代表最后一个历史时间的嵌入
+    def _interaction_logits(self, history_calendar, future_calendar, history_weights):
+        """返回 (B, H, N, K)，不构造历史×未来全连接注意力。"""
+        current = history_calendar.expand_as(future_calendar)
+        relation = torch.cat([current, future_calendar - current,
+                              current * future_calendar], dim=-1)
+        return (self.calendar_interaction(relation)
+                + history_weights @ self.prototype_transition)
 
-        Returns:
-            proto_enhanced_feat: (B, T, N, proto_emb_dim) 原型增强特征
-            proj_feat: (B, T, N, proto_emb_dim) 投影特征
+    def forward(self, time_series_emb: torch.Tensor, tid_emb: torch.Tensor = None, diw_emb: torch.Tensor = None,
+                future_tid_emb: torch.Tensor = None, future_diw_emb: torch.Tensor = None) -> tuple:
+        """对历史末步及全部未来步独立分配原型，返回 (B, 1+H, N, D)。
+
+        time_series_emb 将整个历史窗口特征扩展到 1+H；历史时间身份
+        仅保留末步，未来时间身份逐步保留，共享分配器与原型表。
         """
-        B, T, N, _ = time_series_emb.shape
-
-        # ========== 2. 提取 tid_emb 和 diw_emb 的最后一个时间步 ==========
-        tid_last = tid_emb[:, -1, :, :] if tid_emb is not None else None
-        diw_last = diw_emb[:, -1, :, :] if diw_emb is not None else None
-
-        # ========== 3. MLP 直接预测分配权重 ==========
-        x_list = [time_series_emb[:, -1, :, :]] if self.use_his else []
-        if tid_last is not None:
-            x_list.append(tid_last)
-        if diw_last is not None:
-            x_list.append(diw_last)
-        x_alloc = torch.cat(x_list, dim=-1)  # (B, N, in_dim)
-        x_alloc_flat = x_alloc.reshape(B * N, -1)  # (B*N, in_dim)
+        if any(emb is None for emb in (tid_emb, diw_emb, future_tid_emb, future_diw_emb)):
+            raise ValueError('TemporalBasis requires historical and future tid/diw embeddings')
+        tid = torch.cat([tid_emb, future_tid_emb], dim=1)
+        diw = torch.cat([diw_emb, future_diw_emb], dim=1)
+        if tid.shape[:3] != time_series_emb.shape[:3] or diw.shape[:3] != tid.shape[:3]:
+            raise ValueError('Time-series and calendar embeddings must align on B, 1+H, N')
+        parts = [time_series_emb] if self.use_his else []
+        x_alloc = torch.cat(parts + [tid, diw], dim=-1)
+        proj_feat = self.proj(x_alloc)
         if self.use_proto:
-            base_attn = self.allocator(x_alloc_flat)  # (B*N, num_protos)
-            base_attn = F.softmax(base_attn / self.temp, dim=-1)  # 用温度控制锐度
-
-        # ========== 4. 投影到 proto_emb_dim ==========
-        proj_feat = self.proj(x_alloc_flat)  # (B*N, proto_emb_dim)
-
-        # ========== 5. 加权求和得到原型增强特征 ==========
-        if self.use_proto:
-            proto_enhanced_flat = base_attn @ self.prototypes  # (B*N, proto_emb_dim)
+            logits = self.allocator(x_alloc)
+            if self.use_time_interaction:
+                current_calendar = torch.cat([tid_emb, diw_emb], dim=-1)
+                target_calendar = torch.cat([future_tid_emb, future_diw_emb], dim=-1)
+                current_weights = F.softmax(logits[:, :1] / self.temp, dim=-1)
+                adjustment = self._interaction_logits(current_calendar, target_calendar, current_weights)
+                logits = torch.cat([logits[:, :1], logits[:, 1:] + adjustment], dim=1)
+            weights = F.softmax(logits / self.temp, dim=-1)
+            proto_enhanced = weights @ self.prototypes
         else:
-            proto_enhanced_flat = self.linear(x_alloc_flat)
-
-        # ========== 6. reshape 回 (B, T, N, dim) ==========
-        proto_enhanced = proto_enhanced_flat.reshape(B, 1, N, -1).expand(B, T, N, -1)
-        proj_feat = proj_feat.reshape(B, 1, N, -1).expand(B, T, N, -1)
-
+            proto_enhanced = self.linear(x_alloc)
         return proto_enhanced, proj_feat

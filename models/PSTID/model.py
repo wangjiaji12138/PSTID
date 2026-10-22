@@ -2,6 +2,7 @@
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 from models.base import BaseModel
 from .graph import _compute_adj_mx_emb_init
 from .layers import MultiLayerPerceptron
@@ -39,7 +40,9 @@ class PSTID(BaseModel):
                  # adj_mx 衍生的可学习节点嵌入维度
                  adj_mx_emb_dim: int = 64,
                  adj_mx: torch.Tensor = None,
-                 use_his: bool = True):
+                 use_his: bool = True, time_slots=None,
+                 use_time_interaction: bool = False,
+                 use_proto_change: bool = False, proto_change_context: str = "encoded"):
         super().__init__()
 
         # ==================== STID 基础参数 ====================
@@ -59,7 +62,18 @@ class PSTID(BaseModel):
         self.if_day_in_week = if_day_in_week
         self.device = device or torch.device('cpu')
 
-        self.time_of_day_size = int((24 * 60 * 60) / time_intervals)
+        if time_intervals <= 0 or 86400 % time_intervals != 0:
+            raise ValueError('time_intervals must be a positive divisor of 86400')
+        self.time_of_day_size = int(86400 / time_intervals)
+        slots = torch.as_tensor(
+            list(range(self.time_of_day_size)) if time_slots is None else time_slots,
+            dtype=torch.long,
+        )
+        if (slots.ndim != 1 or slots.numel() == 0
+                or torch.any(slots < 0) or torch.any(slots >= self.time_of_day_size)
+                or torch.any(slots[1:] <= slots[:-1])):
+            raise ValueError('time_slots must be sorted, unique daily slot indices')
+        self.register_buffer('time_slots', slots, persistent=False)
         self.day_of_week_size = 7
 
         # ==================== ProtoModule 参数 ====================
@@ -135,6 +149,7 @@ class PSTID(BaseModel):
                 use_temporal=self.use_temporal,
                 use_his=self.use_his,
                 use_proto=self.use_proto,
+                use_time_interaction=use_time_interaction,
                 proto_temp=self.proto_temperature,
                 adj_mx_emb_dim=self.adj_mx_emb_dim,
                 spatial_emb_dim=self.spatial_emb_dim,
@@ -153,6 +168,25 @@ class PSTID(BaseModel):
             *[MultiLayerPerceptron(self.hidden_dim, self.hidden_dim) for _ in range(self.num_block)]
         )
 
+        # 逐步时间特征只通过轻量残差修正预测，不改变多步主回归头。
+        self.future_readout = None
+        if self.use_proto and self.use_temporal:
+            self.future_readout = nn.Linear(self.hidden_dim, 1, bias=False)
+            nn.init.zeros_(self.future_readout.weight)
+
+        # 当前窗口状态调制未来-历史原型差，提供节点相关的非线性变化修正。
+        if proto_change_context not in ('raw', 'encoded'):
+            raise ValueError('proto_change_context must be raw or encoded')
+        self.proto_change_context = proto_change_context
+        self.proto_change_query = self.proto_change_delta = self.proto_change_readout = None
+        if self.use_proto and self.use_temporal and use_proto_change:
+            rank = min(16, self.hidden_dim)
+            with torch.random.fork_rng(devices=[]):
+                self.proto_change_query = nn.Linear(self.hidden_dim, rank)
+                self.proto_change_delta = nn.Linear(self.hidden_dim, rank, bias=False)
+                self.proto_change_readout = nn.Linear(2 * rank, 1, bias=False)
+            nn.init.zeros_(self.proto_change_readout.weight)
+
         # ==================== Regression Layer ====================
         self.regression_layer = nn.Conv2d(
             in_channels=self.hidden_dim,
@@ -168,34 +202,46 @@ class PSTID(BaseModel):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def _get_embeddings(self, batch):
-        """获取 STID 的嵌入表示 (B, T, N, hidden_dim)
+    def _encode_time(self, calendar):
+        """历史和未来共享嵌入表，每个时间步按自身 tid、diw 查表。"""
+        tid_idx = torch.round(calendar[..., 0] * self.time_of_day_size).long().clamp(0, self.time_of_day_size - 1)
+        diw_idx = torch.round(calendar[..., 1] * self.day_of_week_size).long().clamp(0, self.day_of_week_size - 1)
+        # 专用 embedding backward 避免重复日期索引的高级索引梯度累加开销。
+        return F.embedding(tid_idx, self.time_in_day_emb), F.embedding(diw_idx, self.day_in_week_emb)
 
-        与 STID.forward() 中的嵌入逻辑一致，但扩展到所有 T 个时间步
+    def _future_calendar(self, x):
+        """从历史末步推算未来日程，返回 (B, output_window, N, 2)，不使用标签。"""
+        tid = torch.round(x[:, -1, :, 1] * self.time_of_day_size).long()
+        diw = torch.round(x[:, -1, :, 2] * self.day_of_week_size).long()
+        position = torch.searchsorted(self.time_slots, tid.contiguous())
+        # 输入时间应属于配置的日程；此处不做 Tensor -> Python 判断，避免每批 GPU 同步。
+        offsets = torch.arange(1, self.output_window + 1, device=x.device)
+        future_position = position[:, None, :] + offsets[None, :, None]
+        future_tid = self.time_slots[future_position % self.time_slots.numel()]
+        future_diw = (diw[:, None, :] + future_position // self.time_slots.numel()) % 7
+        return torch.stack((future_tid.to(x.dtype) / self.time_of_day_size,
+                            future_diw.to(x.dtype) / self.day_of_week_size), dim=-1)
+
+    def _get_embeddings(self, batch):
+        """获取窗口级嵌入表示 (B, 1, N, hidden_dim)
+
+        整个历史窗口编码流量，时间身份只取历史末步
         adj_mx_emb 也参与主嵌入的残差（拼接到 hidden 中），由 ProtoModule 的空间码本同时使用
         """
         input_data = batch['X']
-        batch_size, T, num_nodes, _ = input_data.shape
+        batch_size, _, num_nodes, _ = input_data.shape
 
         # ========== 时间序列嵌入 ==========
-        # (B, T, N, 1) -> (B, T, N, 1) -> Conv2d -> (B, T, N, input_embedding_dim)
+        # 整个历史窗口的流量投影为 (B, 1, N, time_series_emb_dim)
         time_series = input_data[..., :1]  # (B, T, N, 1)
         time_series = time_series.transpose(1, 2).contiguous()
         time_series = time_series.view(
         batch_size, num_nodes, -1).transpose(1, 2).unsqueeze(-1)
-        time_series_emb = self.time_series_emb_layer(time_series).expand(-1, -1, -1, T).permute(0, 3, 2, 1)
+        time_series_emb = self.time_series_emb_layer(time_series).permute(0, 3, 2, 1)
 
         # ========== 时间嵌入 ==========
-        # 使用最后一个时间步的 tid/diw 作为代表，扩展到所有 T 个时间步
-        tid_data = input_data[..., 1:2]  # (B, T, N, 1)
-        tid_idx = (tid_data[:, -1, :, 0] * self.time_of_day_size).long().clamp(0, self.time_of_day_size - 1)  # (B, N) 只取最后一步
-        time_in_day_emb = self.time_in_day_emb[tid_idx]  # (B, N, temp_dim_tid)
-        time_in_day_emb = time_in_day_emb.unsqueeze(1).expand(-1, T, -1, -1)  # (B, T, N, temp_dim_tid)
-
-        diw_data = input_data[..., 2:3]  # (B, T, N, 1)
-        diw_idx = (diw_data[:, -1, :, 0] * self.day_of_week_size).long().clamp(0, self.day_of_week_size - 1)  # (B, N) 只取最后一步
-        day_in_week_emb = self.day_in_week_emb[diw_idx]  # (B, N, temp_dim_diw)
-        day_in_week_emb = day_in_week_emb.unsqueeze(1).expand(-1, T, -1, -1)  # (B, T, N, temp_dim_diw)
+        # 历史只取末步时间身份；未来窗口在 forward 中逐步编码
+        time_in_day_emb, day_in_week_emb = self._encode_time(input_data[:, -1:, :, 1:3])
 
         # ========== 空间嵌入 ==========
         node_emb = self.node_emb  # (N, spatial_emb_dim)
@@ -206,15 +252,15 @@ class PSTID(BaseModel):
         emb_list.append(time_in_day_emb)
         emb_list.append(day_in_week_emb)
 
-        node_emb_4d = node_emb.unsqueeze(0).unsqueeze(1).expand(batch_size, T, -1, -1)  # (B, T, N, D)
+        node_emb_4d = node_emb.unsqueeze(0).unsqueeze(1).expand(batch_size, 1, -1, -1)  # (B, 1, N, D)
         emb_list.append(node_emb_4d)
 
         # adj_mx_emb 作为主嵌入的残差项参与拼接（仅 use_adj=True 时）
         if self.use_adj and self.adj_mx_emb is not None:
-            adj_mx_emb_4d = self.adj_mx_emb.unsqueeze(0).unsqueeze(1).expand(batch_size, T, -1, -1)  # (B, T, N, D_adj)
+            adj_mx_emb_4d = self.adj_mx_emb.unsqueeze(0).unsqueeze(1).expand(batch_size, 1, -1, -1)  # (B, 1, N, D_adj)
             emb_list.append(adj_mx_emb_4d)
 
-        # (B, T, N, hidden_dim)
+        # (B, 1, N, hidden_dim)
         hidden = torch.cat(emb_list, dim=-1)
 
         # 返回拼接后的嵌入以及各分量（供原型模块使用）
@@ -225,20 +271,49 @@ class PSTID(BaseModel):
         """Predict (B, output_window, N, 1) from a batch of historical inputs."""
         hidden, time_series_emb, tid_emb, diw_emb, spatio_emb, _ = self._get_embeddings(batch)
 
+        # 主干维持原 PSTID 的窗口级特征和各预测步独立的回归参数。
+        hidden = hidden[:, -1:]
+        correction = None
+        change = change_context = None
         if self.proto_module is not None:
+            future_tid = future_diw = None
+            if self.use_temporal:
+                future_tid, future_diw = self._encode_time(self._future_calendar(batch['X']))
+                series = time_series_emb[:, :1].expand(
+                    -1, 1 + self.output_window, -1, -1)
+            else:
+                series = time_series_emb[:, :1]
             proto_enhanced = self.proto_module(
-                time_series_emb=time_series_emb,
+                time_series_emb=series,
                 adj_mx_emb=self.adj_mx_emb,
                 node_emb=spatio_emb,
                 tid_emb=tid_emb,
                 diw_emb=diw_emb,
+                future_tid_emb=future_tid,
+                future_diw_emb=future_diw,
             )
             if proto_enhanced is not None:
-                hidden = hidden + proto_enhanced
+                if self.use_temporal:
+                    history_proto = proto_enhanced[:, :1]
+                    hidden = hidden + history_proto[:, -1:]
+                    # 历史保持单个窗口身份；未来各步独立修正对应预测。
+                    future_proto = proto_enhanced[:, 1:]
+                    correction = self.future_readout(future_proto)
+                    if self.proto_change_readout is not None:
+                        change_context = hidden
+                        change = F.gelu(self.proto_change_delta(future_proto - history_proto))
+                else:
+                    hidden = hidden + proto_enhanced
 
-        hidden = hidden.permute(0, 3, 2, 1)
-        hidden = self.encoder(hidden)
-        return self.regression_layer(hidden)[..., 0:1]
+        hidden = self.encoder(hidden.permute(0, 3, 2, 1).contiguous())
+        if change is not None:
+            context = (hidden.permute(0, 3, 2, 1) if self.proto_change_context == 'encoded'
+                       else change_context)
+            current = torch.tanh(self.proto_change_query(context))
+            correction = correction + self.proto_change_readout(
+                torch.cat([change, change * current], dim=-1))
+        prediction = self.regression_layer(hidden)
+        return prediction if correction is None else prediction + correction
 
 
     @staticmethod
@@ -261,6 +336,7 @@ class PSTID(BaseModel):
 
         return PSTID(
             num_nodes=num_nodes,
+            time_slots=_get_arg(args, 'pstid_time_slots', None),
             input_window=_get_arg(args, 'input_window', 24),
             output_window=_get_arg(args, 'output_window', 24),
             feature_dim=3,
@@ -284,6 +360,9 @@ class PSTID(BaseModel):
             use_spatio=_get_arg(args, 'use_spatio', True),
             use_temporal=_get_arg(args, 'use_temporal', True),
             use_his=_get_arg(args, 'use_his', True),
+            use_time_interaction=bool(_get_arg(args, 'use_time_interaction', False)),
+            use_proto_change=bool(_get_arg(args, 'use_proto_change', False)),
+            proto_change_context=_get_arg(args, 'proto_change_context', 'raw'),
             # 新增参数
             proto_emb_dim=_get_arg(args, 'proto_emb_dim', 64),
             # adj_mx 衍生的可学习节点嵌入维度

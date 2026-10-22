@@ -4,12 +4,12 @@
 
 统计口径：
 
-- 数据取自 `results_88`（seed=88，原 `results` 目录）、`results_13`（seed=13）、`results_42`（seed=42）的 `test_results.json`；原要求中的 `result_13` 更正为实际目录名 `results_13`。
-- HimNet 在五个数据集上的三个种子（13、42、88）均取自 `results/<数据集>/HIMNET_*/test_results.json`；统一使用 `num_layers=1`、`input_embedding_dim=16`、`use_teacher_forcing=0`、`tf_decay_steps=2` 的配置。
-- 除 HimNet 外，NYC-Bike 的 seed=13、42 结果取自 `results/nyc_bike/*/test_results.json`，seed=88 取自 `results_88/nyc_bike`。
-- 五个数据集的每个模型均使用三个种子的结果，展示三个种子的等权算术均值，不展示标准差，保留三位小数；先用原始精度计算和排名，再四舍五入。
-- 模型名忽略大小写，旧名 PSTID 的完整模型归入 PROPHET；排除关闭 Proto、Spatio、Temporal、Adj、His 的消融实验；`proto_ablation=direct_embeddings_mlp` 是当前配置的默认字段，`use_proto=true` 时不据此判定为消融。旧配置未保存 `use_his` 时按默认开启处理。
-- 按 `config.json` 中的实际种子筛选，排除 `results_88` 中混入的 seed=13 实验。
+- 数据仅取自 `results_all/<数据集>/<模型>_<seed>_<时间戳及后缀>/test_results.json`，不纳入 `results` 下正在补跑的其他实验。
+- 五个数据集、14 个模型均覆盖 seed=13、42、88，共使用 210 个完整模型实验；每个数据集、模型、seed 仅有一份结果。
+- HimNet 的 15 个实验统一使用 `num_layers=1`、`input_embedding_dim=16`、`use_teacher_forcing=0`、`tf_decay_steps=2`；数据集对应的时间槽允许不同。
+- 展示三个种子的等权算术均值，不展示标准差，保留三位小数；先用原始精度计算和排名，再四舍五入。
+- 模型名忽略大小写；PROPHET 仅纳入完整模型，排除关闭 Proto、Spatio、Temporal、Adj、His 的消融及旧版 `wo_P_LinearSoftmaxLinear`。`proto_ablation=direct_embeddings_mlp` 是当前配置的默认字段，`use_proto=true` 时不据此判定为消融；旧配置未保存 `use_his` 时按默认开启处理。
+- 按 `config.json` 中的实际 seed 核对，不依据历史所属目录推断。
 - MAPE 直接使用测试 JSON 中的百分数值，不再乘以 100。
 - 各指标越低越好；按未舍入的均值标出最优（粗体）和次优（下划线）。
 - 提升百分比以每个数据集、每项指标的最优基线（排除 PROPHET）为参照，按 `(最优基线均值 − PROPHET 均值) / 最优基线均值 × 100%` 计算；使用未舍入的三种子均值，最终保留两位小数。正值表示改善，负值表示退步。
@@ -52,35 +52,41 @@ Improvement (\%) & $2.94\%$ & $4.18\%$ & $2.00\%$ & $3.30\%$ & $5.01\%$ & $2.26\
 \end{table*}
 ```
 
-PROPHET 完整模型的 seed=88 来源（其余两个种子中，前四个数据集使用各自种子目录、NYC-Bike 使用 `results/nyc_bike` 下的 `PROPHET_*/test_results.json`）：
+PROPHET 完整模型三种子结果来源：
 
-- cq: `results_88/cq/PSTID_20260920_215035/test_results.json`
-- hz: `results_88/hz/PSTID_20260920_215923/test_results.json`
-- nyc_taxi: `results_88/nyc_taxi/PSTID_20260920_225812/test_results.json`
-- chi_taxi: `results_88/chi_taxi/PSTID_20260920_223757/test_results.json`
-- nyc_bike: `results_88/nyc_bike/PROPHET_20261002_022630__Full/test_results.json`
+- cq seed=13: `results_all/cq/PROPHET_13_20261016_052959/test_results.json`
+- cq seed=42: `results_all/cq/PROPHET_42_20261010_045203/test_results.json`
+- cq seed=88: `results_all/cq/PROPHET_88_20260920_215035__Full/test_results.json`
+- hz seed=13: `results_all/hz/PROPHET_13_20261016_092059/test_results.json`
+- hz seed=42: `results_all/hz/PROPHET_42_20261010_083451/test_results.json`
+- hz seed=88: `results_all/hz/PROPHET_88_20260920_215923__Full/test_results.json`
+- nyc_taxi seed=13: `results_all/nyc_taxi/PROPHET_13_20261017_215925/test_results.json`
+- nyc_taxi seed=42: `results_all/nyc_taxi/PROPHET_42_20261011_200251/test_results.json`
+- nyc_taxi seed=88: `results_all/nyc_taxi/PROPHET_88_20260920_225812__Full/test_results.json`
+- chi_taxi seed=13: `results_all/chi_taxi/PROPHET_13_20261018_082812/test_results.json`
+- chi_taxi seed=42: `results_all/chi_taxi/PROPHET_42_20261012_063407/test_results.json`
+- chi_taxi seed=88: `results_all/chi_taxi/PROPHET_88_20260920_223757__Full/test_results.json`
+- nyc_bike seed=13: `results_all/nyc_bike/PROPHET_13_20261020_230441/test_results.json`
+- nyc_bike seed=42: `results_all/nyc_bike/PROPHET_42_20261021_132813/test_results.json`
+- nyc_bike seed=88: `results_all/nyc_bike/PROPHET_88_20261002_022630__Full/test_results.json`
 
-HimNet 三种子结果来源（旧配置和空目录已清理）：
+HimNet 三种子结果来源（均为统一配置的新实验）：
 
-- cq seed=13: `results/cq/HIMNET_20261020_210555/test_results.json`
-- cq seed=42: `results/cq/HIMNET_20261021_041630/test_results.json`
-- cq seed=88: `results/cq/HIMNET_20261021_111550/test_results.json`
-- hz seed=13: `results/hz/HIMNET_20261020_213746/test_results.json`
-- hz seed=42: `results/hz/HIMNET_20261021_043903/test_results.json`
-- hz seed=88: `results/hz/HIMNET_20261021_114212/test_results.json`
-- nyc_taxi seed=13: `results/nyc_taxi/HIMNET_20261020_220341/test_results.json`
-- nyc_taxi seed=42: `results/nyc_taxi/HIMNET_20261021_050134/test_results.json`
-- nyc_taxi seed=88: `results/nyc_taxi/HIMNET_20261021_120725/test_results.json`
-- chi_taxi seed=13: `results/chi_taxi/HIMNET_20261021_013400/test_results.json`
-- chi_taxi seed=42: `results/chi_taxi/HIMNET_20261021_082317/test_results.json`
-- chi_taxi seed=88: `results/chi_taxi/HIMNET_20261021_152941/test_results.json`
-- nyc_bike seed=13: `results/nyc_bike/HIMNET_20261021_025257/test_results.json`
-- nyc_bike seed=42: `results/nyc_bike/HIMNET_20261021_095051/test_results.json`
-- nyc_bike seed=88: `results/nyc_bike/HIMNET_20261021_164944/test_results.json`
-
-NYC-Bike 新增 PROPHET 完整模型的来源：
-- PROPHET seed=13: `results/nyc_bike/PROPHET_20261020_230441/test_results.json`
-- PROPHET seed=42: `results/nyc_bike/PROPHET_20261021_132813/test_results.json`
+- cq seed=13: `results_all/cq/HIMNET_13_20261020_210555/test_results.json`
+- cq seed=42: `results_all/cq/HIMNET_42_20261021_041630/test_results.json`
+- cq seed=88: `results_all/cq/HIMNET_88_20261021_111550/test_results.json`
+- hz seed=13: `results_all/hz/HIMNET_13_20261020_213746/test_results.json`
+- hz seed=42: `results_all/hz/HIMNET_42_20261021_043903/test_results.json`
+- hz seed=88: `results_all/hz/HIMNET_88_20261021_114212/test_results.json`
+- nyc_taxi seed=13: `results_all/nyc_taxi/HIMNET_13_20261020_220341/test_results.json`
+- nyc_taxi seed=42: `results_all/nyc_taxi/HIMNET_42_20261021_050134/test_results.json`
+- nyc_taxi seed=88: `results_all/nyc_taxi/HIMNET_88_20261021_120725/test_results.json`
+- chi_taxi seed=13: `results_all/chi_taxi/HIMNET_13_20261021_013400/test_results.json`
+- chi_taxi seed=42: `results_all/chi_taxi/HIMNET_42_20261021_082317/test_results.json`
+- chi_taxi seed=88: `results_all/chi_taxi/HIMNET_88_20261021_152941/test_results.json`
+- nyc_bike seed=13: `results_all/nyc_bike/HIMNET_13_20261021_025257/test_results.json`
+- nyc_bike seed=42: `results_all/nyc_bike/HIMNET_42_20261021_095051/test_results.json`
+- nyc_bike seed=88: `results_all/nyc_bike/HIMNET_88_20261021_164944/test_results.json`
 
 提升百分比对应的最优基线（依次为 MAE / RMSE / MAPE）：
 

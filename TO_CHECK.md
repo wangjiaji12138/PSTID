@@ -1,9 +1,17 @@
 Baselines Comparison：
-results 13,42,88是之前跑的，13和42没有NYC_BIKE的数据
 
 nyc_taxi 全改1层，正在跑3seed*全部模型
 
-Abl（NYC_TAXI和CQ）:
-跑完了figs里的数据也要改
+在想要不要把nyc_taxi删掉
+需要替换的：
+实验数据集说明
+baseline
+消融实验
+effi分析
+时间、空间分析
+（超参数倒是选的chicago）
 
-HimNet重跑了。所以Efii也要改
+可以改时间，加入未来24时间信息
+
+而且正文里要改，nyc_bike已经三组全了
+

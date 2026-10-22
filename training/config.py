@@ -78,6 +78,11 @@ def create_parser():
     parser.set_defaults(proto_ablation='direct_embeddings_mlp')
     parser.add_argument('--use_spatio', type=int, default=1)
     parser.add_argument('--use_temporal', type=int, default=1)
+    parser.add_argument('--use_time_interaction', type=int, choices=[0, 1], default=0,
+                        help='PSTID: condition future prototypes on current calendar and prototype assignment')
+    parser.add_argument('--use_proto_change', type=int, choices=[0, 1], default=0,
+                        help='PSTID: state-conditioned future-minus-current prototype readout')
+    parser.add_argument('--proto_change_context', choices=['raw', 'encoded'], default='encoded')
     parser.add_argument('--use_his', type=int, choices=[0, 1], default=1,
                         help='原型分支是否使用时间序列嵌入（0=仅身份嵌入，1=包含历史序列）')
 

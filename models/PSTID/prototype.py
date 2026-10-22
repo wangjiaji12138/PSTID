@@ -31,7 +31,8 @@ class ProtoModule(nn.Module):
                  hidden_dim: int = None,
                  use_adj: bool = True,
                  use_his: bool = True,
-                 use_proto: bool = True):
+                 use_proto: bool = True,
+                 use_time_interaction: bool = False):
         super().__init__()
 
         self.n_spatial, self.n_temporal = n_spatial, n_temporal
@@ -69,6 +70,7 @@ class ProtoModule(nn.Module):
                 temp_dim_diw=temp_dim_diw,
                 use_his=use_his,
                 use_proto=use_proto,
+                use_time_interaction=use_time_interaction,
             )
 
         # ---- 输出投影层：proto_enhanced (proto_dim) -> hidden_dim ----
@@ -79,7 +81,9 @@ class ProtoModule(nn.Module):
                 adj_mx_emb: torch.Tensor = None,
                 node_emb: torch.Tensor = None,
                 tid_emb: torch.Tensor = None,
-                diw_emb: torch.Tensor = None) -> torch.Tensor | None:
+                diw_emb: torch.Tensor = None,
+                future_tid_emb: torch.Tensor = None,
+                future_diw_emb: torch.Tensor = None) -> torch.Tensor | None:
         """Fuse branch features; add query residuals only with prototypes enabled."""
         spatial_out = None
         temporal_enhanced = temporal_proj = None
@@ -87,7 +91,7 @@ class ProtoModule(nn.Module):
             spatial_out = self.spatial_codebook(time_series_emb, adj_mx_emb, node_emb)
         if self.use_temporal:
             temporal_enhanced, temporal_proj = self.temporal_basis(
-                time_series_emb, tid_emb, diw_emb
+                time_series_emb, tid_emb, diw_emb, future_tid_emb, future_diw_emb
             )
 
         if self.use_spatio and self.use_temporal:

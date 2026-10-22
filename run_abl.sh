@@ -12,19 +12,19 @@ MODEL=${MODEL,,}
 
 # 消融实验开关列表
 ABL=(
-    # "use_proto"
-    # "use_spatio"
-    # "use_temporal"
-    # "use_adj"
     "use_proto"
+    "use_spatio"
+    "use_temporal"
+    "use_adj"
+    "use_his"
 )
 
 # 数据集列表
 DATASETS=(
-    "cq"
-    "hz"
-    "chi_taxi"
-    "nyc_taxi"
+    # "cq"
+    # "hz"
+    # "chi_taxi"
+    # "nyc_taxi"
     "nyc_bike"
 )
 
@@ -62,7 +62,7 @@ for data in "${DATASETS[@]}"; do
         echo "Ablation: $abl = 0"
         echo "----------------------------------------"
 
-        python train.py --data $data --model $MODEL_UPPER --$abl 0 --epochs $EPOCHS --gpu $GPU --results_dir /results_88/
+        python train.py --data $data --model $MODEL_UPPER --$abl 0 --epochs $EPOCHS --gpu $GPU --results_dir results_all/
 
         EXIT_CODE=$?
 

@@ -27,10 +27,14 @@ def main():
     args.use_spatio = bool(args.use_spatio)
     args.use_temporal = bool(args.use_temporal)
     args.use_his = bool(args.use_his)
+    args.use_time_interaction = bool(args.use_time_interaction)
+    args.use_proto_change = bool(args.use_proto_change)
 
     # Distinguish the new fork from historical experiments named PSTID.
     if args.model.upper() == 'PSTID':
-        args.model_variant = 'pstid_fork_v0'
+        args.model_variant = ('pstid_future_change_v1' if args.use_proto_change else
+                              'pstid_future_interaction_v1' if args.use_time_interaction else
+                              'pstid_future_independent_v1')
 
     # Validate model against the shared registry
     if args.model.upper() not in MODEL_LIST:
@@ -90,16 +94,17 @@ def main():
     num_nodes = dataset['train']['X'].shape[2]
     adj_mx = torch.from_numpy(dataset['adj_mx']).float().to(device)
 
-    if model_name.upper() == 'HIMNET':
+    if model_name.upper() in ('HIMNET', 'PSTID'):
         # Infer the fixed daily calendar from training time features only.
         # Persist it in config so checkpoint reconstruction uses the same schedule.
         if args.time_intervals <= 0 or 86400 % args.time_intervals != 0:
             raise ValueError('time_intervals must be a positive divisor of 86400')
         slots_per_day = 86400 // args.time_intervals
-        args.himnet_time_slots = np.unique(np.rint(
+        time_slots = np.unique(np.rint(
             dataset['train']['X'][:, :, 0, 1] * slots_per_day
         ).astype(np.int64)).tolist()
-        logger.info(f'HimNet daily time slots: {args.himnet_time_slots}')
+        setattr(args, f'{model_name.lower()}_time_slots', time_slots)
+        logger.info(f'{model_name} daily time slots: {time_slots}')
 
     model = build_model(model_name, args, num_nodes, adj_mx, device)
 
