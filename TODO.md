@@ -8,7 +8,7 @@
 - 五个数据集、14 个模型均覆盖 seed=13、42、88，共使用 210 个完整模型实验；每个数据集、模型、seed 仅有一份结果。
 - HimNet 的 15 个实验统一使用 `num_layers=1`、`input_embedding_dim=16`、`use_teacher_forcing=0`、`tf_decay_steps=2`；数据集对应的时间槽允许不同。
 - 展示三个种子的等权算术均值，不展示标准差，保留三位小数；先用原始精度计算和排名，再四舍五入。
-- 模型名忽略大小写；PROPHET 仅纳入完整模型，排除关闭 Proto、Spatio、Temporal、Adj、His 的消融及旧版 `wo_P_LinearSoftmaxLinear`。`proto_ablation=direct_embeddings_mlp` 是当前配置的默认字段，`use_proto=true` 时不据此判定为消融；旧配置未保存 `use_his` 时按默认开启处理。
+- 模型名忽略大小写；PROPHET 的旧配置模型名 `PSTID` 统一归入 PROPHET。PROPHET 仅纳入完整模型，排除关闭 Proto、Spatio、Temporal、Adj、His 的消融及旧版 `wo_P_LinearSoftmaxLinear`。`proto_ablation=direct_embeddings_mlp` 是当前配置的默认字段，`use_proto=true` 时不据此判定为消融；旧配置未保存 `use_his` 时按默认开启处理。
 - 按 `config.json` 中的实际 seed 核对，不依据历史所属目录推断。
 - MAPE 直接使用测试 JSON 中的百分数值，不再乘以 100。
 - 各指标越低越好；按未舍入的均值标出最优（粗体）和次优（下划线）。
@@ -16,9 +16,18 @@
 - LaTeX 导言区需加载 `booktabs`、`multirow` 和 `graphicx`；使用 `table*` 跨双栏排版，并按正文宽度缩放。
 
 ```tex
+\subsection{Comparisons with Baselines}
+We compare PROPHET with 13 representative baselines spanning statistical forecasting, graph-based modeling, normalization, embedding-based methods, and pattern learning:
+\textbf{HA}~\cite{ha}, \textbf{DCRNN}~\cite{dcrnn}, \textbf{STNorm}~\cite{stnorm}, \textbf{MTGNN}~\cite{mtgnn}, \textbf{AGCRN}~\cite{agcrn}, \textbf{GWNet}~\cite{gwnet}, \textbf{STDN}~\cite{stdn}, \textbf{STID}~\cite{stid}, \textbf{STAEformer}~\cite{staeformer}, \textbf{MegaCRN}~\cite{megacrn}, \textbf{ST-SSL}~\cite{stssl}, \textbf{HimNet}~\cite{himnet}, and \textbf{ST-SSDL}~\cite{stssdl}.
+We report mean absolute error (MAE) and root mean squared error (RMSE) in demand units, and mean absolute percentage error (MAPE). MAE and RMSE include zero-demand targets, while MAPE is computed over targets with demand at least 0.5.
+Table~\ref{comparisons} reports the arithmetic mean over three random seeds (13, 42, and 88) for every model on all five datasets.
+PROPHET achieves the lowest MAE and RMSE on all five datasets and the lowest MAPE on CQ, HZ, CHI-Taxi, and NYC-Bike, ranking first in 14 of the 15 dataset--metric comparisons.
+The largest relative improvements are observed on NYC-Bike, where PROPHET reduces MAE, RMSE, and MAPE by 18.83\%, 19.28\%, and 20.05\%, respectively, relative to the best baseline for each metric.
+On NYC-Taxi, PROPHET reduces MAE and RMSE by 3.69\% and 5.43\%, respectively, relative to MTGNN, but ranks third in MAPE behind MegaCRN and MTGNN; its MAPE is 1.31\% higher than that of MegaCRN.
+
 \begin{table*}[t]
 \centering
-\caption{Forecasting performance on CQ, HZ, NYC-Taxi, CHI-Taxi, and NYC-Bike. Results are averaged over seeds 88, 13, and 42. Lower values are better. The best and second-best means are shown in bold and underlined, respectively. Improvement is the relative error reduction of PROPHET over the best baseline for each metric; negative values indicate worse performance.}
+\caption{Forecasting performance on CQ, HZ, NYC-Taxi, CHI-Taxi, and NYC-Bike. Results are averaged over three different seeds. Lower values are better. The best and second-best means are shown in bold and underlined, respectively. Improvement is the relative error reduction of PROPHET over the best baseline for each metric; negative values indicate worse performance.}
 \label{comparisons}
 \begingroup
 \fontsize{8.5}{10.5}\selectfont

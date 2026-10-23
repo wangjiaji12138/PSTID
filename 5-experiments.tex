@@ -1,0 +1,241 @@
+\subsection{Datasets and Implementation Details}
+We use five datasets: HZ and CQ for logistics pickup demand from LaDe~\cite{lade}, NYC-Taxi and CHI-Taxi for taxi demand, and NYC-Bike for bicycle demand.
+For the logistics datasets, only daytime data (08:00–19:59) was selected, whereas full-day data was used for the taxi and bicycle datasets.
+Forecasting comparisons cover all five datasets; ablations use CQ and NYC-Taxi, and efficiency is evaluated on NYC-Taxi.
+For all datasets, demand is aggregated at 30-minute intervals, with an input window of $T=24$ time steps and a prediction horizon of $T'=24$ time steps.
+Demand is represented by a single feature per node for both the input and prediction target ($F=F'=1$).
+Table~\ref{datasets} summarizes their statistics.
+Each dataset is divided chronologically into training, validation, and test sets in a 60\%:20\%:20\% ratio.
+% AUTHOR CHECK: Confirm chronological splitting and whether the reported time-step counts refer to raw intervals or constructed forecasting samples.
+
+\begin{table}
+\centering
+\caption{Dataset statistics.}\label{datasets}
+\begin{tabular}{c c c c}
+\hline
+Dataset &  Nodes ($N$) & Time steps & Time range\\
+\hline
+CQ & 137 & 4737 & 05/2022 - 10/2022\\
+HZ & 112 & 4737 & 05/2022 - 10/2022\\
+\hline
+NYC-Taxi & 263 & 26209 & 01/2016 - 06/2017\\
+CHI-Taxi & 77 & 17473 & 01/2021 - 12/2021\\
+\hline
+NYC-Bike & 72 & 17473 & 01/2020 - 12/2020\\
+\hline
+\end{tabular}
+\end{table}
+
+We implement the models in PyTorch 2.4.0 with CUDA 12.1.
+All experiments run on an Intel Xeon Silver 4310 CPU at 2.10\,GHz and a single NVIDIA A800 GPU with 80\,GB of memory.
+Neural models are trained for up to 100 epochs using Adam with an initial learning rate of 0.001 and a batch size of 64.
+Early stopping is applied with a patience of 15 epochs.
+
+\subsection{Comparisons with Baselines}
+We compare PROPHET with 13 representative baselines spanning statistical forecasting, graph-based modeling, normalization, embedding-based methods, and pattern learning:
+\textbf{HA}~\cite{ha}, \textbf{DCRNN}~\cite{dcrnn}, \textbf{STNorm}~\cite{stnorm}, \textbf{MTGNN}~\cite{mtgnn}, \textbf{AGCRN}~\cite{agcrn}, \textbf{GWNet}~\cite{gwnet}, \textbf{STDN}~\cite{stdn}, \textbf{STID}~\cite{stid}, \textbf{STAEformer}~\cite{staeformer}, \textbf{MegaCRN}~\cite{megacrn}, \textbf{ST-SSL}~\cite{stssl}, \textbf{HimNet}~\cite{himnet}, and \textbf{ST-SSDL}~\cite{stssdl}.
+We report mean absolute error (MAE) and root mean squared error (RMSE) in demand units, and mean absolute percentage error (MAPE). MAE and RMSE include zero-demand targets, while MAPE is computed over targets with demand at least 0.5.
+Table~\ref{comparisons} reports the arithmetic mean over three random seeds (13, 42, and 88) for every model on all five datasets.
+PROPHET achieves the lowest MAE, RMSE, and MAPE on all five datasets, ranking first in all 15 dataset--metric comparisons.
+The largest relative improvements are observed on NYC-Bike, where PROPHET reduces MAE, RMSE, and MAPE by 19.45\%, 19.91\%, and 20.83\%, respectively, relative to the best baseline for each metric.
+On NYC-Taxi, PROPHET reduces MAE and RMSE by 5.30\% and 6.88\%, respectively, relative to MTGNN, and reduces MAPE by 0.50\% relative to MegaCRN.
+
+\begin{table*}[t]
+\centering
+\caption{Forecasting performance on CQ, HZ, NYC-Taxi, CHI-Taxi, and NYC-Bike. Results are averaged over three different seeds. Lower values are better. The best and second-best means are shown in bold and underlined, respectively. Improvement is the relative error reduction of PROPHET over the best baseline for each metric; negative values indicate worse performance.}
+\label{comparisons}
+\begingroup
+\fontsize{8.5}{10.5}\selectfont
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l | ccc | ccc | ccc | ccc | ccc}
+\toprule
+\multirow{2}{*}{Models} & \multicolumn{3}{c}{CQ} & \multicolumn{3}{c}{HZ} & \multicolumn{3}{c}{NYC-Taxi} & \multicolumn{3}{c}{CHI-Taxi} & \multicolumn{3}{c}{NYC-Bike} \\
+& MAE & RMSE & MAPE (\%) & MAE & RMSE & MAPE (\%) & MAE & RMSE & MAPE (\%) & MAE & RMSE & MAPE (\%) & MAE & RMSE & MAPE (\%) \\
+\midrule
+HA         & $1.325$ & $3.577$ & $78.834$ & $2.749$ & $6.273$ & $89.984$ & $17.146$ & $45.911$ & $147.039$ & $3.252$ & $10.886$ & $115.351$ & $9.060$ & $18.122$ & $251.038$ \\
+DCRNN      & $0.660$ & $1.618$ & $53.884$ & $1.283$ & $2.801$ & $48.777$ & $5.113$ & $15.115$ & $47.595$ & $1.289$ & $3.589$ & $61.085$ & $4.194$ & $9.080$ & $100.660$ \\
+STNorm     & $0.797$ & $2.001$ & $57.230$ & $1.741$ & $4.432$ & $55.240$ & $5.763$ & $16.902$ & $52.208$ & $1.548$ & $5.223$ & $64.827$ & $5.870$ & $12.512$ & $156.443$ \\
+MTGNN      & $0.671$ & $1.634$ & $51.708$ & $1.216$ & $2.660$ & $46.906$ & $\underline{4.242}$ & $\underline{12.030}$ & $44.473$ & $\underline{1.247}$ & $\underline{3.521}$ & $60.330$ & $\underline{3.500}$ & $\underline{7.785}$ & $75.576$ \\
+AGCRN      & $1.068$ & $3.531$ & $66.055$ & $1.873$ & $5.711$ & $56.629$ & $5.237$ & $16.005$ & $49.302$ & $1.832$ & $7.857$ & $63.983$ & $4.256$ & $10.370$ & $88.830$ \\
+GWNet      & $0.656$ & $1.639$ & $52.942$ & $1.285$ & $3.061$ & $47.664$ & $4.885$ & $14.141$ & $48.839$ & $1.386$ & $4.372$ & $61.261$ & $5.349$ & $11.318$ & $142.796$ \\
+STDN       & $0.653$ & $1.661$ & $54.320$ & $1.242$ & $3.057$ & $46.099$ & $6.740$ & $18.746$ & $70.921$ & $1.987$ & $7.687$ & $67.491$ & $5.138$ & $11.379$ & $119.726$ \\
+STID       & $\underline{0.649}$ & $\underline{1.580}$ & $\underline{51.474}$ & $\underline{1.154}$ & $\underline{2.419}$ & $\underline{44.181}$ & $5.249$ & $15.379$ & $49.638$ & $1.310$ & $3.858$ & $60.626$ & $3.723$ & $8.612$ & $78.708$ \\
+STAEformer & $0.656$ & $1.607$ & $52.765$ & $1.219$ & $2.752$ & $46.368$ & $4.805$ & $13.879$ & $50.114$ & $1.288$ & $3.745$ & $61.166$ & $3.546$ & $7.796$ & $77.394$ \\
+ST-SSL     & $0.748$ & $1.897$ & $58.427$ & $1.417$ & $3.353$ & $49.992$ & $5.530$ & $16.110$ & $50.822$ & $1.480$ & $4.764$ & $67.971$ & $4.348$ & $9.911$ & $96.971$ \\
+MegaCRN    & $0.694$ & $1.734$ & $54.016$ & $1.316$ & $3.164$ & $48.152$ & $4.248$ & $12.254$ & $\underline{44.010}$ & $1.358$ & $4.127$ & $61.177$ & $3.635$ & $8.423$ & $77.240$ \\
+HimNet     & $0.818$ & $2.583$ & $56.013$ & $1.528$ & $4.529$ & $50.145$ & $4.727$ & $13.933$ & $46.462$ & $1.488$ & $5.532$ & $61.187$ & $3.911$ & $8.918$ & $84.780$ \\
+ST-SSDL    & $0.760$ & $2.179$ & $54.028$ & $1.434$ & $4.234$ & $50.042$ & $9.834$ & $33.939$ & $58.006$ & $1.495$ & $5.465$ & $\underline{59.121}$ & $3.565$ & $8.290$ & $\underline{75.389}$ \\
+\midrule
+PROPHET    & $\mathbf{0.624}$ & $\mathbf{1.501}$ & $\mathbf{50.304}$ & $\mathbf{1.107}$ & $\mathbf{2.288}$ & $\mathbf{43.258}$ & $\mathbf{4.017}$ & $\mathbf{11.202}$ & $\mathbf{43.790}$ & $\mathbf{1.153}$ & $\mathbf{3.080}$ & $\mathbf{58.576}$ & $\mathbf{2.819}$ & $\mathbf{6.235}$ & $\mathbf{59.689}$ \\
+Improvement (\%) & $3.91\%$ & $4.97\%$ & $2.27\%$ & $4.08\%$ & $5.40\%$ & $2.09\%$ & $5.30\%$ & $6.88\%$ & $0.50\%$ & $7.55\%$ & $12.52\%$ & $0.92\%$ & $19.45\%$ & $19.91\%$ & $20.83\%$ \\
+\bottomrule
+\end{tabular}%
+}
+\endgroup
+\end{table*}
+
+\subsection{Ablation Study}
+We conduct ablation studies to evaluate the key components of PROPHET.
+The full model and all variants use seed 88 on CQ and NYC-Taxi (Fig.~\ref{fig:ablation}):
+(1) $w/o~P$ removes the prototype module and decodes only the original embeddings $[E_h \Vert E_s \Vert E_n \Vert E_d \Vert E_w]$.
+(2) $w/o~T$ and $w/o~S$ remove the temporal and spatial branches, respectively.
+(3) $w/o~L$ removes the geographic Laplacian embedding.
+(4) $w/o~H$ removes demand history $E_h$ from both prototype-assignment paths but retains it in the decoder.
+As shown in Fig.~\ref{fig:ablation}, prototype enhancement improves forecasting beyond directly decoding the original embeddings on both datasets.
+Conditioning assignment on demand history provides an additional benefit even when the decoder already receives that history, supporting adaptive selection of shared patterns.
+Both branches contribute to lower MAE and RMSE on both datasets.
+The spatial branch contributes more to MAE reduction on CQ, whereas the temporal branch contributes slightly more on NYC-Taxi.
+The temporal branch offers a smaller benefit than the spatial branch on CQ, while still improving all three metrics.
+
+Laplacian embeddings improve MAE, RMSE, and MAPE on both ablation datasets.
+The CQ comparison (Fig.~\ref{lap}) also shows broader spatial prototype utilization: more prototypes receive highest-weight node assignments when geographic information is included.
+
+\begin{figure}
+\Description{Six bar charts compare PROPHET with variants that remove the prototype module and directly decode the original embeddings, omit demand history from prototype assignment, remove the spatial branch, remove the temporal branch, or remove the Laplacian embedding. The upper row shows CQ and the lower row shows NYC-Taxi; columns show MAE, RMSE, and MAPE. Lower bars indicate lower prediction error.}
+  \centering
+  \begin{subfigure}[b]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/ablation/CQ_MAE.pdf}
+    \caption{CQ: MAE}
+    \label{fig:ablation_cq_mae}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/ablation/CQ_RMSE.pdf}
+    \caption{CQ: RMSE}
+    \label{fig:ablation_cq_rmse}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/ablation/CQ_MAPE.pdf}
+    \caption{CQ: MAPE}
+    \label{fig:ablation_cq_mape}
+  \end{subfigure}
+
+  \smallskip
+  \begin{subfigure}[b]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/ablation/NYC_MAE.pdf}
+    \caption{NYC-Taxi: MAE}
+    \label{fig:ablation_nyc_mae}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/ablation/NYC_RMSE.pdf}
+    \caption{NYC-Taxi: RMSE}
+    \label{fig:ablation_nyc_rmse}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figs/ablation/NYC_MAPE.pdf}
+    \caption{NYC-Taxi: MAPE}
+    \label{fig:ablation_nyc_mape}
+  \end{subfigure}
+  \caption{Ablation study on CQ (a--c) and NYC-Taxi (d--f). All results use seed 88. Columns report MAE, RMSE, and MAPE, respectively. Lower values indicate better performance; the vertical axes do not start at zero.}
+  \label{fig:ablation}
+\end{figure}
+
+\begin{figure}
+\Description{Bar chart showing spatial prototype utilization on CQ with and without Laplacian embeddings, measured as the percentage of nodes for which each prototype receives the highest assignment weight. Gold bars include Laplacian embeddings and blue bars omit them. Dominant assignments cover eight of the 16 prototypes with Laplacian embeddings and three without them.}
+  \centering
+  \includegraphics[width=0.65\textwidth]{figs/lap/lap.pdf}
+  \caption{Effect of Laplacian embeddings on spatial prototype utilization on CQ. Utilization is the percentage of nodes assigning the highest weight to each prototype.}
+  \label{lap}
+\end{figure}
+
+\subsection{Efficiency Study}
+Table~\ref{efficiency} reports parameter counts, mean time per epoch, and total training time on NYC-Taxi, averaged over seeds 13, 42, and 88.
+For each run, time per epoch is the mean of the recorded epoch durations, which include training and validation; total training time is their sum through early stopping, excluding data loading, final test evaluation, and checkpoint-writing overhead.
+The baseline runs are the same runs used for Table~\ref{comparisons}.
+PROPHET uses 109.2\,K parameters and requires 11.9\,s per epoch and 12.88\,min in total (65 epochs for each seed), ranking second only to STID in both time measures among the listed models.
+Compared with STID, PROPHET uses approximately 2.34 times as many parameters and 2.07 times the total training time, while reducing MAE and RMSE by 23.47\% and 27.16\%, respectively.
+Compared with HimNet, PROPHET has more parameters but reduces total training time by 93.68\% and achieves lower forecasting errors on all three metrics.
+Thus, its training-time advantage does not imply the smallest parameter count: STID, HimNet, and STNorm all have fewer parameters.
+
+\begin{table}
+\centering
+\caption{Efficiency on NYC-Taxi, averaged over three seeds. K denotes 1,000 parameters. Total is the sum of training-and-validation epoch durations, averaged across runs. AGCRN has 315,422 parameters for seeds 13 and 42 and 319,262 for seed 88; its mean is reported.}
+\label{efficiency}
+\begin{tabular}{l r r r}
+\toprule
+Model & Params (K) & Time/Epoch (s) & Total (min) \\
+\midrule
+HimNet     & 62.6 & 188.0 & 203.61 \\
+ST-SSDL    & 386.4 & 128.0 & 146.02 \\
+GWNet      & 351.2 & 160.2 & 164.17 \\
+AGCRN      & 316.7 & 123.7 & 121.08 \\
+STNorm     & 96.0 & 49.5 & 57.13 \\
+STID       & 46.7 & 5.9 & 6.23 \\
+PROPHET    & 109.2 & 11.9 & 12.88 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Prototype Analysis}\label{sec:prototype_analysis}
+\noindent\textbf{Hyperparameter sensitivity.}
+On CHI-Taxi, we test spatial prototype counts $M_S\in\{4,8,12,16,20\}$ and shared prototype dimensions $d_p\in\{16,32,48,64,80\}$ (Fig.~\ref{fig:hyper}).
+Each sweep holds the other prototype settings fixed.
+Forecasting is insensitive to the spatial prototype count within the tested range, suggesting that a small dictionary is sufficient on CHI-Taxi.
+Increasing the prototype dimension does not consistently improve accuracy; intermediate dimensions perform best, with the preferred setting depending on the metric.
+
+\begin{figure}
+\Description{Six bar charts show hyperparameter sensitivity on CHI-Taxi. The upper row varies the spatial prototype count from 4 to 20, and the lower row varies the shared temporal and spatial prototype dimension from 16 to 80. Columns report MAE, RMSE, and MAPE. Darker bars mark the minimum error in each panel. Errors change little across the tested prototype counts. A dimension of 32 gives the lowest MAE, while 64 gives the lowest RMSE and MAPE.}
+  \centering
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{figs/hyper/hyper_m_mae.pdf}
+    \caption{$M_S$: MAE}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{figs/hyper/hyper_m_rmse.pdf}
+    \caption{$M_S$: RMSE}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{figs/hyper/hyper_m_mape.pdf}
+    \caption{$M_S$: MAPE}
+  \end{subfigure}
+
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{figs/hyper/hyper_d_mae.pdf}
+    \caption{$d_p$: MAE}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{figs/hyper/hyper_d_rmse.pdf}
+    \caption{$d_p$: RMSE}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{figs/hyper/hyper_d_mape.pdf}
+    \caption{$d_p$: MAPE}
+  \end{subfigure}
+  \caption{Hyperparameter sensitivity on CHI-Taxi. Panels (a--c) show the effect of the number of spatial prototypes $M_S$, and panels (d--f) show the effect of the shared prototype dimension $d_p$. Columns report MAE, RMSE, and MAPE, respectively.}
+  \label{fig:hyper}
+\end{figure}
+
+\noindent\textbf{Temporal preferences and adaptive pattern combinations.}
+Figure~\ref{temporal} compares a volatile NYC-Taxi node at 09:00 on three Wednesdays within a similar time period, selected by test-set demand profiles without using prototype assignments.
+Similar demand histories on May 31 and June 7 produce similar prototype mixtures, whereas the stronger morning demand on May 17 shifts the allocation toward $T_6$.
+This case illustrates how the temporal encoder adapts shared patterns to demand history even under identical node and calendar context; it does not establish a dataset-wide association.
+
+\begin{figure}
+\Description{Three columns show observed demand at NYC-Taxi node 165 on May 17, May 31, and June 7, 2017, all Wednesdays, with red, green, and blue curves respectively. Dashed lines and circles mark 09:00. Below each curve, a stacked strip shows the corresponding assignment weights over temporal prototypes T0 through T7. The last two days have similar demand and allocation profiles. The first has higher morning demand and a larger T6 weight.}
+\centering
+\includegraphics[width=\textwidth]{figs/temporal_nyc_taxi/nyc_taxi_wednesday_day_comparison.pdf}
+\caption{Temporal preferences at a volatile NYC-Taxi node on three Wednesdays within a similar time period. Curves show observed half-hourly demand; strips show prototype assignments from the 24-step history ending at 09:00.} \label{temporal}
+\end{figure}
+
+\noindent\textbf{Spatial pattern sharing.}
+Figure~\ref{radar} illustrates pattern sharing across nodes: similar demand curves at Nodes 1 and 2 correspond to similar spatial prototype mixtures.
+Node 3 has a distinct demand profile and a different mixture, showing that shared prototypes can retain node-specific variation in this selected example.
+
+\begin{figure}
+\Description{Observed demand curves and a radar chart of assignment weights over 16 spatial prototypes for three selected NYC-Taxi nodes, labeled Nodes 1--3. Nodes 1 and 2 have similar demand patterns and prototype assignment profiles, while Node 3 differs in both.}
+  \centering
+  \includegraphics[width=\textwidth]{figs/radar/radar.pdf}
+  \caption{Observed demand profiles and spatial prototype assignment weights for three selected nodes on NYC-Taxi.}
+  \label{radar}
+  \label{fig:spatial_prototype_analysis}
+\end{figure}

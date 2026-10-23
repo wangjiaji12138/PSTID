@@ -1,17 +1,7 @@
 Baselines Comparison：
+在跑加入未来时间的pstid3种子 pstid的tmux
 
-nyc_taxi 全改1层，正在跑3seed*全部模型
+results里面现在是3seed+5个abl
+nyc_taxi多了很多个单层的seed
 
-在想要不要把nyc_taxi删掉
-需要替换的：
-实验数据集说明
-baseline
-消融实验
-effi分析
-时间、空间分析
-（超参数倒是选的chicago）
-
-可以改时间，加入未来24时间信息
-
-而且正文里要改，nyc_bike已经三组全了
 

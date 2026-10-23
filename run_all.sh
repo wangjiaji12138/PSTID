@@ -2,30 +2,30 @@
 
 # 模型列表
 MODELS=(
-    "HA"
-    "DCRNN"
-    "AGCRN"
-    "MTGNN"
-    "GWNET"
-    "STDN"
-    "STAEformer" 
-    "MegaCRN"
-    "STID"
-    "STNorm"
-    "STSSL"
-    "STSSDL"
-    # "HimNet"
+    # "HA"
+    # "DCRNN"
+    # "AGCRN"
+    # "MTGNN"
+    # "GWNET"
+    # "STDN"
+    # "STAEformer" 
+    # "MegaCRN"
+    # "STID"
+    # "STNorm"
+    # "STSSL"
+    # "STSSDL"
+    # # "HimNet"
     "PROPHET"
 )
 
 
 # 数据集列表
 DATASETS=(
-    # "cq"
-    # "hz"
+    "cq"
+    "hz"
     "nyc_taxi"
-    # "chi_taxi"
-    # "nyc_bike"
+    "chi_taxi"
+    "nyc_bike"
 )
 
 
@@ -35,16 +35,16 @@ START_TIME=$(date +%s)
 SEED=(
     "13"
     "42"
-    "88"
+    # "88"
 )
 
 for seed in "${SEED[@]}"; do
-    for model in "${MODELS[@]}"; do
+    for data in "${DATASETS[@]}"; do
         echo "========================================"
         echo "Running: python train.py --seed $seed --model $model --data nyc_taxi"
         echo "========================================"
         
-        python train.py --seed $seed --model "$model" --epoch 100 --gpu 4 --data nyc_taxi --input_embedding_dim 16 --num_layers 1
+        python train.py --seed $seed --model PSTID --epoch 100 --gpu 4 --data $data
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -eq 0 ]; then
