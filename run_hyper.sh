@@ -3,7 +3,7 @@
 # M experiment: fix proto_emb_dim=64, vary num_spatial_prototypes (4,8,12,16,20)
 # d experiment: fix num_spatial_prototypes=16, vary proto_emb_dim (16,32,48,64,80)
 
-DATA="nyc_taxi"
+DATA="cq"
 GPU=1
 
 echo "========================================"
@@ -14,14 +14,14 @@ for M in 4 8 12 16 20; do
     python train.py --model PSTID --data $DATA --proto_emb_dim 64 --num_spatial_prototypes $M --gpu $GPU --results_dir results_hyper/
 done
 
-echo ""
-echo "========================================"
-echo "d Experiment: num_spatial_prototypes=16, proto_emb_dim in [16,32,48,64,80]"
-echo "========================================"
-for D in 16 32 48 64 80; do
-    echo "Running: num_spatial_prototypes=16, proto_emb_dim=$D"
-    python train.py --model PSTID --data $DATA --proto_emb_dim $D --num_spatial_prototypes 16 --gpu $GPU --results_dir results_hyper/
-done
+# echo ""
+# echo "========================================"
+# echo "d Experiment: num_spatial_prototypes=16, proto_emb_dim in [16,32,48,64,80]"
+# echo "========================================"
+# for D in 8 16 32 64 128; do
+#     echo "Running: num_spatial_prototypes=16, proto_emb_dim=$D"
+#     python train.py --model PSTID --data $DATA --proto_emb_dim $D --num_spatial_prototypes 16 --gpu $GPU --results_dir results_hyper/
+# done
 
-echo ""
-echo "All experiments completed!"
+# echo ""
+# echo "All experiments completed!"

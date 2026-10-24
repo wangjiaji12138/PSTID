@@ -2,14 +2,23 @@ import pytest
 import torch
 
 from models.PSTID.model import PSTID
+from models.PROPHET.model import PROPHET
 
 
-def make_model(**kwargs):
-    kwargs.setdefault("use_time_interaction", True)
-    return PSTID(num_nodes=2, input_window=3, output_window=5,
-                 time_series_emb_dim=4, spatial_emb_dim=3,
-                 temp_dim_tid=3, temp_dim_diw=2, proto_emb_dim=4,
-                 use_adj=False, **kwargs)
+@pytest.fixture(params=[PSTID, PROPHET], ids=['PSTID', 'PROPHET'])
+def model_class(request):
+    return request.param
+
+
+@pytest.fixture
+def make_model(model_class):
+    def factory(**kwargs):
+        kwargs.setdefault("use_time_interaction", True)
+        return model_class(num_nodes=2, input_window=3, output_window=5,
+                           time_series_emb_dim=4, spatial_emb_dim=3,
+                           temp_dim_tid=3, temp_dim_diw=2, proto_emb_dim=4,
+                           use_adj=False, **kwargs)
+    return factory
 
 
 def history(slot=47, day=6):
@@ -19,7 +28,7 @@ def history(slot=47, day=6):
     return x
 
 
-def test_calendar_rollover_and_shared_encoding():
+def test_calendar_rollover_and_shared_encoding(make_model):
     model = make_model()
     future = model._future_calendar(history())
     torch.testing.assert_close(future[0, :, 0, 0] * 48, torch.arange(5).float())
@@ -29,7 +38,7 @@ def test_calendar_rollover_and_shared_encoding():
     torch.testing.assert_close(diw[:, 0], model.day_in_week_emb[0].expand(2, 2, -1))
 
 
-def test_partial_daily_schedule():
+def test_partial_daily_schedule(make_model):
     model = make_model(time_slots=[12, 13, 14])
     future = model._future_calendar(history(14, 6))
     torch.testing.assert_close(future[0, :, 0, 0] * 48, torch.tensor([12., 13., 14., 12., 13.]))
@@ -37,7 +46,7 @@ def test_partial_daily_schedule():
 
 
 @pytest.mark.parametrize('use_his', [True, False])
-def test_future_conditions_temporal_prototypes_and_backprop(use_his):
+def test_future_conditions_temporal_prototypes_and_backprop(use_his, make_model):
     torch.manual_seed(0)
     model = make_model(use_his=use_his).eval()
     with torch.no_grad():
@@ -58,11 +67,11 @@ def test_future_conditions_temporal_prototypes_and_backprop(use_his):
 
 
 @pytest.mark.parametrize('options', [{'use_proto': False}, {'use_temporal': False}])
-def test_ablation_without_temporal_branch(options):
+def test_ablation_without_temporal_branch(options, make_model):
     assert make_model(**options)({'X': history()}).shape == (2, 5, 2, 1)
 
 
-def test_history_last_and_all_future_steps_use_own_calendar_and_prototype():
+def test_history_last_and_all_future_steps_use_own_calendar_and_prototype(make_model):
     torch.manual_seed(7)
     model = make_model().eval()
     with torch.no_grad():
@@ -89,7 +98,7 @@ def test_history_last_and_all_future_steps_use_own_calendar_and_prototype():
         assert model.time_in_day_emb.grad[slot].abs().sum() > 0
 
 
-def test_future_position_reaches_corresponding_prediction():
+def test_future_position_reaches_corresponding_prediction(make_model):
     torch.manual_seed(8)
     model = make_model().eval()
     with torch.no_grad():
@@ -104,7 +113,7 @@ def test_future_position_reaches_corresponding_prediction():
     torch.testing.assert_close(original[:, [0, 2, 3, 4]], changed[:, [0, 2, 3, 4]])
 
 
-def test_zero_initialized_correction_and_single_position_encoder():
+def test_zero_initialized_correction_and_single_position_encoder(make_model):
     model = make_model().eval()
     assert torch.count_nonzero(model.future_readout.weight) == 0
     assert model.regression_layer.out_channels == model.output_window
@@ -117,7 +126,7 @@ def test_zero_initialized_correction_and_single_position_encoder():
     assert model.future_readout.weight.grad.abs().sum() > 0
 
 
-def test_earlier_calendar_ignored_but_entire_history_flow_used():
+def test_earlier_calendar_ignored_but_entire_history_flow_used(make_model):
     torch.manual_seed(17)
     model = make_model().eval()
     x = history()
@@ -129,7 +138,7 @@ def test_earlier_calendar_ignored_but_entire_history_flow_used():
     assert not torch.allclose(model({'X': changed}), original)
 
 
-def test_embedding_lookup_matches_indexing_outputs_and_gradients():
+def test_embedding_lookup_matches_indexing_outputs_and_gradients(make_model):
     import copy
     import types
 
@@ -161,7 +170,7 @@ def test_embedding_lookup_matches_indexing_outputs_and_gradients():
             assert ref_param.grad is None
 
 
-def test_interaction_zero_init_preserves_previous_model_and_learns():
+def test_interaction_zero_init_preserves_previous_model_and_learns(make_model):
     torch.manual_seed(52)
     baseline = make_model(use_time_interaction=False).eval()
     with torch.no_grad():
@@ -183,7 +192,7 @@ def test_interaction_zero_init_preserves_previous_model_and_learns():
 
 
 @pytest.mark.parametrize('use_his', [True, False])
-def test_history_calendar_conditions_future_prototypes(use_his):
+def test_history_calendar_conditions_future_prototypes(use_his, make_model):
     torch.manual_seed(53)
     model = make_model(use_his=use_his).eval()
     _, series, tid, diw, _, _ = model._get_embeddings({'X': history()})
@@ -205,7 +214,7 @@ def test_history_calendar_conditions_future_prototypes(use_his):
     torch.testing.assert_close(original[:, :1], with_interaction_history)
 
 
-def test_interaction_switch_preserves_shared_initialization():
+def test_interaction_switch_preserves_shared_initialization(make_model):
     torch.manual_seed(88)
     baseline = make_model(use_time_interaction=False)
     torch.manual_seed(88)
@@ -216,7 +225,7 @@ def test_interaction_switch_preserves_shared_initialization():
 
 
 @pytest.mark.parametrize("context", ["raw", "encoded"])
-def test_change_readout_zero_init_preserves_baseline_and_learns(context):
+def test_change_readout_zero_init_preserves_baseline_and_learns(context, make_model):
     torch.manual_seed(88)
     baseline = make_model(use_time_interaction=False, use_proto_change=False).eval()
     torch.manual_seed(88)
@@ -236,25 +245,25 @@ def test_change_readout_zero_init_preserves_baseline_and_learns(context):
 
 
 @pytest.mark.parametrize('options', [{'use_proto': False}, {'use_temporal': False}])
-def test_change_readout_disabled_without_temporal_prototypes(options):
+def test_change_readout_disabled_without_temporal_prototypes(options, make_model):
     model = make_model(use_proto_change=True, **options)
     assert model.proto_change_readout is None
     assert model({'X': history()}).shape == (2, 5, 2, 1)
 
 
-def test_new_features_enabled_by_default_and_can_be_disabled():
+def test_new_features_enabled_by_default_and_can_be_disabled(model_class):
     from training.config import create_parser
 
     args = create_parser().parse_args([])
     assert args.use_time_interaction == 1
     assert args.use_proto_change == 1
     assert args.proto_change_context == 'encoded'
-    for model in [PSTID(num_nodes=2, use_adj=False),
-                  PSTID.from_args({'use_adj': False}, 2, None, torch.device('cpu'))]:
+    for model in [model_class(num_nodes=2, use_adj=False),
+                  model_class.from_args({'use_adj': False}, 2, None, torch.device('cpu'))]:
         assert model.proto_module.temporal_basis.use_time_interaction
         assert model.proto_change_readout is not None
         assert model.proto_change_context == 'encoded'
-    disabled = PSTID.from_args({'use_adj': False, 'use_time_interaction': 0,
+    disabled = model_class.from_args({'use_adj': False, 'use_time_interaction': 0,
                                 'use_proto_change': 0}, 2, None, torch.device('cpu'))
     assert not disabled.proto_module.temporal_basis.use_time_interaction
     assert disabled.proto_change_readout is None

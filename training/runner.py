@@ -30,11 +30,12 @@ def main():
     args.use_time_interaction = bool(args.use_time_interaction)
     args.use_proto_change = bool(args.use_proto_change)
 
-    # Distinguish the new fork from historical experiments named PSTID.
-    if args.model.upper() == 'PSTID':
-        args.model_variant = ('pstid_future_change_v1' if args.use_proto_change else
-                              'pstid_future_interaction_v1' if args.use_time_interaction else
-                              'pstid_future_independent_v1')
+    # Distinguish future-conditioned models from historical implementations.
+    if args.model.upper() in ('PSTID', 'PROPHET'):
+        prefix = args.model.lower()
+        args.model_variant = (f'{prefix}_future_change_v1' if args.use_proto_change else
+                              f'{prefix}_future_interaction_v1' if args.use_time_interaction else
+                              f'{prefix}_future_independent_v1')
 
     # Validate model against the shared registry
     if args.model.upper() not in MODEL_LIST:
@@ -94,7 +95,7 @@ def main():
     num_nodes = dataset['train']['X'].shape[2]
     adj_mx = torch.from_numpy(dataset['adj_mx']).float().to(device)
 
-    if model_name.upper() in ('HIMNET', 'PSTID'):
+    if model_name.upper() in ('HIMNET', 'PSTID', 'PROPHET'):
         # Infer the fixed daily calendar from training time features only.
         # Persist it in config so checkpoint reconstruction uses the same schedule.
         if args.time_intervals <= 0 or 86400 % args.time_intervals != 0:
