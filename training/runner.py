@@ -109,6 +109,16 @@ def main():
 
     model = build_model(model_name, args, num_nodes, adj_mx, device)
 
+    if model_name.upper() == 'STSSDL':
+        model.fit_history(dataset['train']['X'])
+        args.model_variant = 'stssdl_weekly_flow_anchor_v1'
+        args.stssdl_history_source = 'train_X_unique_overlapping_timestamps'
+        args.stssdl_history_zero_is_valid = True
+        args.stssdl_history_fallback = 'training_node_mean'
+        args.use_curriculum_learning = False
+        model.use_curriculum_learning = False
+        logger.info('STSSDL: fitted weekly flow anchors on training inputs; curriculum learning disabled')
+
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model params: total={total_params:,}, trainable={trainable_params:,}")

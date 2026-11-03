@@ -233,7 +233,8 @@ class STSSDL(BaseModel):
     """原型增强的时空对比学习模型
     
     数据流: 编码器 -> 原型查询 -> 解码器 -> 预测
-    支持3维输入: [时序值, 时刻(day-of-time), 历史值(day-of-week)]
+    支持3维输入: [时序值, 时刻(time-of-day), 星期(day-of-week)]。
+    历史流量由训练集拟合的周均值表查询，不占用星期通道。
     """
     
     model_name = "stssdl"
@@ -245,7 +246,7 @@ class STSSDL(BaseModel):
                  tod_embed_dim: int = 10, node_embed_dim: int = 20,
                  adaptive_embed_dim: int = 48,
                  lambda_contrastive: float = 0.1, lambda_deviation: float = 1.0,
-                 cl_decay_steps: int = 2000, use_curriculum_learning: bool = True,
+                 cl_decay_steps: int = 2000, use_curriculum_learning: bool = False,
                  adj_mx: np.ndarray = None,
                  device: torch.device = None,
                  time_intervals: int = 1800):
@@ -294,7 +295,12 @@ class STSSDL(BaseModel):
         self.device = device or torch.device('cpu')
         
         # 时间嵌入配置
+        if time_intervals <= 0 or 86400 % time_intervals:
+            raise ValueError('time_intervals must be a positive divisor of 86400')
         self.time_of_day_size = 24 * 60 * 60 // time_intervals
+        self.register_buffer('weekly_flow_anchor', torch.zeros(7, self.time_of_day_size, num_nodes))
+        self.register_buffer('weekly_flow_counts', torch.zeros(7, self.time_of_day_size, num_nodes, dtype=torch.long))
+        self.register_buffer('history_fitted', torch.tensor(False))
         
         # 输入投影层
         self.input_proj = nn.Linear(1, model_dim)
@@ -308,7 +314,8 @@ class STSSDL(BaseModel):
         
         # 自适应嵌入
         self.adaptive_embedding = nn.Parameter(torch.randn(in_window, num_nodes, adaptive_embed_dim))
-        nn.init.xavier_uniform_(self.adaptive_embedding)
+        if adaptive_embed_dim > 0:
+            nn.init.xavier_uniform_(self.adaptive_embedding)
         
         # 总嵌入维度
         total_embed_dim = model_dim + tod_embed_dim + adaptive_embed_dim + node_embed_dim
@@ -379,7 +386,7 @@ class STSSDL(BaseModel):
             lambda_contrastive=getattr(args, 'lambda_contrastive', 0.1),
             lambda_deviation=getattr(args, 'lambda_deviation', 1.0),
             cl_decay_steps=getattr(args, 'cl_decay_steps', 2000),
-            use_curriculum_learning=getattr(args, 'use_curriculum_learning', True),
+            use_curriculum_learning=getattr(args, 'use_curriculum_learning', False),
             adj_mx=adj_mx,
             device=device,
             time_intervals=args.time_intervals
@@ -388,6 +395,24 @@ class STSSDL(BaseModel):
     def compute_sampling_threshold(self):
         """计算课程学习采样阈值"""
         return self.cl_decay_steps / (self.cl_decay_steps + np.exp(self.batches_seen / self.cl_decay_steps))
+
+    def fit_history(self, train_x):
+        """Fit only on training inputs; buffers travel with the checkpoint."""
+        from data_pipeline.history import fit_weekly_flow_anchor
+        anchor, counts = fit_weekly_flow_anchor(train_x, self.time_of_day_size)
+        if anchor.shape != tuple(self.weekly_flow_anchor.shape):
+            raise ValueError('Training history node count does not match the model')
+        self.weekly_flow_anchor.copy_(torch.as_tensor(anchor, device=self.weekly_flow_anchor.device))
+        self.weekly_flow_counts.copy_(torch.as_tensor(counts, device=self.weekly_flow_counts.device))
+        self.history_fitted.fill_(True)
+
+    def _history_input(self, X):
+        if not self.history_fitted.item():
+            raise RuntimeError('STSSDL history is not fitted: call fit_history(train_X) or load a fitted checkpoint')
+        tod = (X[..., 1] * self.time_of_day_size).round().long().clamp(0, self.time_of_day_size - 1)
+        dow = (X[..., 2] * 7).round().long().clamp(0, 6)
+        nodes = torch.arange(self.num_nodes, device=X.device)
+        return self.weekly_flow_anchor[dow, tod, nodes].unsqueeze(-1)
 
     def _build_features(self, x, x_cov):
         """构建时空嵌入特征
@@ -427,7 +452,7 @@ class STSSDL(BaseModel):
         """模型前向传播（双流时空编码）
         
         Args:
-            batch['X']: (B, T, N, 3) - [时序值, 时刻, 历史值]
+            batch['X']: (B, T, N, 3) - [时序值, 时刻, 星期]
             return_repr: 是否返回中间表示用于对比学习
         Returns:
             (B, out_window, N, 1) 预测结果，或 (output, query, pos, neg, mask, latent_dis, prototype_dis)
@@ -438,7 +463,7 @@ class STSSDL(BaseModel):
         # 解析输入
         x = X[..., :1]  # (B, T, N, 1) 时序值
         x_cov = X[..., 1:2]  # (B, T, N, 1) 时刻
-        x_his = X[..., 2:3]  # (B, T, N, 1) 历史值
+        x_his = self._history_input(X)  # 训练集周历史平均流量
         
         supports = [self.adj_mx]
         init_state = self.encoder.init_hidden(B)
@@ -534,7 +559,7 @@ class STSSDL(BaseModel):
         # 解析输入
         x = X[..., :1]  # (B, T, N, 1)
         x_cov = X[..., 1:2]  # (B, T, N, 1)
-        x_his = X[..., 2:3]  # (B, T, N, 1)
+        x_his = self._history_input(X)  # 训练集周历史平均流量
         
         # 构建当前时刻特征和历史特征（双流编码）
         features = self._build_features(x, x_cov)
