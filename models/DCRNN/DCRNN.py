@@ -284,7 +284,8 @@ class DCRNN(BaseModel):
                  num_rnn_layers: int = 2, rnn_units: int = 64,
                  max_diffusion_step: int = 2, filter_type: str = "laplacian",
                  use_curriculum_learning: bool = False,
-                 adj_mx: np.ndarray = None, device: torch.device = None):
+                 adj_mx: np.ndarray = None, device: torch.device = None,
+                 cl_decay_steps: int = 2000):
         super().__init__()
         
         self.num_nodes = num_nodes
@@ -296,7 +297,7 @@ class DCRNN(BaseModel):
         self.max_diffusion_step = max_diffusion_step
         self.filter_type = filter_type
         self.use_curriculum_learning = use_curriculum_learning
-        self.cl_decay_steps = 1000
+        self.cl_decay_steps = cl_decay_steps
         self.device = device or torch.device('cpu')
         
         self.adj_mx = adj_mx if adj_mx is not None else np.eye(self.num_nodes)

@@ -1,13 +1,53 @@
 """training.config: extracted from the original training entry point."""
 
 import argparse
-from models.registry import MODEL_LIST
+from models.registry import MODEL_LIST, BASELINE_CONFIGS, resolve_model_args
+from models.presets import MODEL_CONFIG_REGISTRY, model_defaults, get_model_config
 from utils.paths import DATA_ROOT, RESULTS_ROOT
+
+
+class ModelArgumentParser(argparse.ArgumentParser):
+    """Parse runtime options; freeze baselines and allow research-model tuning."""
+
+    def parse_known_args(self, args=None, namespace=None):
+        selector = argparse.ArgumentParser(add_help=False)
+        selector.add_argument('--model', type=str.upper, default='PROPHET')
+        selected, _ = selector.parse_known_args(args)
+        if selected.model not in MODEL_CONFIG_REGISTRY:
+            self.error(f'unknown model: {selected.model}')
+        if selected.model in BASELINE_CONFIGS:
+            fixed = BASELINE_CONFIGS[selected.model]
+            defaults = {**fixed['model'], **fixed['training']}
+        else:
+            defaults = model_defaults(selected.model)
+        # Shared experiment settings must not inherit a model's upstream values.
+        defaults.pop('epochs', None)
+        defaults.pop('batch_size', None)
+        # Restore defaults after each call so a parser can be reused safely.
+        previous = {action.dest: action.default for action in self._actions}
+        previous_defaults = self._defaults.copy()
+        try:
+            self.set_defaults(**defaults)
+            result, unknown = super().parse_known_args(args, namespace)
+        finally:
+            for action in self._actions:
+                action.default = previous[action.dest]
+            self._defaults = previous_defaults
+        if result.time_intervals <= 0 or 86400 % result.time_intervals:
+            self.error('--time_intervals must be a positive divisor of 86400')
+        result = argparse.Namespace(**vars(resolve_model_args(result.model, result)))
+        result.hyperparameter_policy = ('fixed_baseline' if result.model in BASELINE_CONFIGS
+                                        else 'tunable')
+        config = get_model_config(result.model)
+        result.registry_provenance = {
+            key: config[key] for key in ('status', 'repository', 'commit', 'profile', 'sources', 'notes')
+        }
+        return result, unknown
 
 
 def create_parser():
     """Create argument parser."""
-    parser = argparse.ArgumentParser(description='PROPHET Training')
+    parser = ModelArgumentParser(description='Model-specific training (official registry defaults)')
 
     # ============================================================
     # 1) Basic
@@ -21,7 +61,9 @@ def create_parser():
     # ============================================================
     # 2) Training
     # ============================================================
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--max_epoch', '--epochs', '--max_epochs', '--epoch',
+                        dest='max_epoch', type=int, default=100,
+                        help='统一训练轮数上限，内部字段为 max_epoch')
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-5)
@@ -87,4 +129,24 @@ def create_parser():
                         help='原型分支是否使用时间序列嵌入（0=仅身份嵌入，1=包含历史序列）')
 
     parser.add_argument('--results_dir', type=str, default=str(RESULTS_ROOT), help='实验结果根目录')
+    # Expose model-only fields without duplicating their defaults in train.
+    known = {action.dest for action in parser._actions}
+    for config in MODEL_CONFIG_REGISTRY.values():
+        for key, value in {**config['model'], **config['training']}.items():
+            if key in known or key in ('epochs', 'max_epochs', 'epoch'):
+                continue
+            kwargs = {'default': argparse.SUPPRESS}
+            if isinstance(value, bool):
+                kwargs.update(type=int, choices=[0, 1])
+            elif isinstance(value, list):
+                kwargs.update(type=int, nargs='*')
+            else:
+                kwargs['type'] = type(value)
+            choices = {'optimizer': ['adam', 'rmsprop'],
+                       'lr_scheduler': ['none', 'multistep', 'step'],
+                       'train_loss': ['mae', 'mse']}
+            if key in choices:
+                kwargs['choices'] = choices[key]
+            parser.add_argument('--' + key, **kwargs)
+            known.add(key)
     return parser

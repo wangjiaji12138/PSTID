@@ -1,0 +1,1808 @@
+{
+  "AGCRN": {
+    "status": "official_adapted",
+    "repository": "https://github.com/LeiBAI/AGCRN",
+    "commit": "7fbbf2aeb099242098a3cf482b55cd45d7295c28",
+    "profile": "PEMSD4",
+    "sources": [
+      "https://github.com/LeiBAI/AGCRN/blob/7fbbf2aeb099242098a3cf482b55cd45d7295c28/model/PEMSD4_AGCRN.conf",
+      "https://github.com/LeiBAI/AGCRN/blob/7fbbf2aeb099242098a3cf482b55cd45d7295c28/model/Run.py"
+    ],
+    "official_config": {
+      "model/PEMSD4_AGCRN.conf": {
+        "data": {
+          "num_nodes": "307",
+          "lag": "12",
+          "horizon": "12",
+          "val_ratio": "0.2",
+          "test_ratio": "0.2",
+          "tod": "False",
+          "normalizer": "std",
+          "column_wise": "False",
+          "default_graph": "True"
+        },
+        "model": {
+          "input_dim": "1",
+          "output_dim": "1",
+          "embed_dim": "10",
+          "rnn_units": "64",
+          "num_layers": "2",
+          "cheb_order": "2"
+        },
+        "train": {
+          "loss_func": "mae",
+          "seed": "10",
+          "batch_size": "64",
+          "epochs": "100",
+          "lr_init": "0.003",
+          "lr_decay": "False",
+          "lr_decay_rate": "0.3",
+          "lr_decay_step": "5,20,40,70",
+          "early_stop": "True",
+          "early_stop_patience": "15",
+          "grad_norm": "False",
+          "max_grad_norm": "5",
+          "real_value": "True"
+        },
+        "test": {
+          "mae_thresh": "None",
+          "mape_thresh": "0."
+        },
+        "log": {
+          "log_step": "20",
+          "plot": "False"
+        }
+      },
+      "model/Run.py": {
+        "--cuda": true,
+        "--teacher_forcing": false,
+        "--log_dir": "./",
+        "literal_assignments": {
+          "Mode": "Train",
+          "DEBUG": "True",
+          "DATASET": "PEMSD4",
+          "DEVICE": "cuda:0",
+          "MODEL": "AGCRN",
+          "lr_scheduler": null,
+          "args.device": "cpu"
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 64,
+      "num_layers": 2,
+      "embed_dim": 10,
+      "cheb_k": 2
+    },
+    "training": {
+      "learning_rate": 0.003,
+      "weight_decay": 0,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 15,
+      "clip_grad": 0,
+      "lr_milestones": [],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "none",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Official grad_norm and lr_decay are disabled. Dataset seed/splits are retained locally.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "GWNET": {
+    "status": "official_adapted",
+    "repository": "https://github.com/nnzhan/Graph-WaveNet",
+    "commit": "6b162e80c59a1d494809252eca055cff93dc66b1",
+    "profile": "METR-LA README command",
+    "sources": [
+      "https://github.com/nnzhan/Graph-WaveNet/blob/6b162e80c59a1d494809252eca055cff93dc66b1/train.py",
+      "https://github.com/nnzhan/Graph-WaveNet/blob/6b162e80c59a1d494809252eca055cff93dc66b1/model.py",
+      "https://github.com/nnzhan/Graph-WaveNet/blob/6b162e80c59a1d494809252eca055cff93dc66b1/engine.py",
+      "https://github.com/nnzhan/Graph-WaveNet/blob/6b162e80c59a1d494809252eca055cff93dc66b1/README.md"
+    ],
+    "official_config": {
+      "train.py": {
+        "--device": "cuda:3",
+        "--data": "data/METR-LA",
+        "--adjdata": "data/sensor_graph/adj_mx.pkl",
+        "--adjtype": "doubletransition",
+        "--seq_length": 12,
+        "--nhid": 32,
+        "--in_dim": 2,
+        "--num_nodes": 207,
+        "--batch_size": 64,
+        "--learning_rate": 0.001,
+        "--dropout": 0.3,
+        "--weight_decay": 0.0001,
+        "--epochs": 100,
+        "--print_every": 50,
+        "--save": "./garage/metr",
+        "--expid": 1,
+        "literal_assignments": {
+          "his_loss": [],
+          "val_time": [],
+          "train_time": [],
+          "outputs": [],
+          "amae": [],
+          "amape": [],
+          "armse": [],
+          "log": "Iter: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}",
+          "adjinit": null,
+          "supports": null,
+          "train_loss": [],
+          "train_mape": [],
+          "train_rmse": [],
+          "valid_loss": [],
+          "valid_mape": [],
+          "valid_rmse": []
+        }
+      },
+      "model.py": {
+        "literal_assignments": {
+          "receptive_field": 1,
+          "self.supports_len": 0,
+          "skip": 0,
+          "new_supports": null,
+          "new_dilation": 1,
+          "self.supports": []
+        }
+      },
+      "engine.py": {
+        "literal_assignments": {
+          "self.clip": 5
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 32,
+      "num_layers": 2,
+      "blocks": 4,
+      "dropout": 0.3,
+      "gcn_bool": true,
+      "addaptadj": true,
+      "randomadj": true,
+      "aptonly": false,
+      "adjtype": "doubletransition",
+      "kernel_size": 2
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 0,
+      "clip_grad": 5,
+      "lr_milestones": [],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "none",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Flags follow README training command, not bare argparse defaults. Local encoder consumes demand only (1 vs official 2 channels).",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits.",
+      "Local factory now honors the requested layer count; for input longer than its receptive field, uses the final temporal forecast. Older checkpoints built with automatic layer expansion require explicit matching num_layers."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "MTGNN": {
+    "status": "official_adapted",
+    "repository": "https://github.com/nnzhan/MTGNN",
+    "commit": "f811746fa7022ebf336f9ecd2434af5f365ecbf6",
+    "profile": "METR-LA multi-step",
+    "sources": [
+      "https://github.com/nnzhan/MTGNN/blob/f811746fa7022ebf336f9ecd2434af5f365ecbf6/train_multi_step.py",
+      "https://github.com/nnzhan/MTGNN/blob/f811746fa7022ebf336f9ecd2434af5f365ecbf6/trainer.py"
+    ],
+    "official_config": {
+      "train_multi_step.py": {
+        "--device": "cuda:1",
+        "--data": "data/METR-LA",
+        "--adj_data": "data/sensor_graph/adj_mx.pkl",
+        "--gcn_true": true,
+        "--buildA_true": true,
+        "--load_static_feature": false,
+        "--cl": true,
+        "--gcn_depth": 2,
+        "--num_nodes": 207,
+        "--dropout": 0.3,
+        "--subgraph_size": 20,
+        "--node_dim": 40,
+        "--dilation_exponential": 1,
+        "--conv_channels": 32,
+        "--residual_channels": 32,
+        "--skip_channels": 64,
+        "--end_channels": 128,
+        "--in_dim": 2,
+        "--seq_in_len": 12,
+        "--seq_out_len": 12,
+        "--layers": 3,
+        "--batch_size": 64,
+        "--learning_rate": 0.001,
+        "--weight_decay": 0.0001,
+        "--clip": 5,
+        "--step_size1": 2500,
+        "--step_size2": 100,
+        "--epochs": 100,
+        "--print_every": 50,
+        "--seed": 101,
+        "--save": "./save/",
+        "--expid": 1,
+        "--propalpha": 0.05,
+        "--tanhalpha": 3,
+        "--num_split": 1,
+        "--runs": 10,
+        "literal_assignments": {
+          "his_loss": [],
+          "val_time": [],
+          "train_time": [],
+          "minl": 100000.0,
+          "outputs": [],
+          "mae": [],
+          "mape": [],
+          "rmse": [],
+          "vmae": [],
+          "vmape": [],
+          "vrmse": [],
+          "log": "Iter: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}",
+          "train_loss": [],
+          "train_mape": [],
+          "train_rmse": [],
+          "valid_loss": [],
+          "valid_mape": [],
+          "valid_rmse": []
+        }
+      },
+      "trainer.py": {
+        "literal_assignments": {
+          "self.iter": 1,
+          "self.task_level": 1,
+          "self.last_ppl": null,
+          "self.start_decay": true,
+          "grad_norm": 0
+        }
+      }
+    },
+    "model": {
+      "conv_channels": 32,
+      "residual_channels": 32,
+      "skip_channels": 64,
+      "end_channels": 128,
+      "gcn_depth": 2,
+      "dropout": 0.3,
+      "subgraph_size": 20,
+      "node_dim": 40,
+      "num_layers": 3,
+      "propalpha": 0.05,
+      "tanhalpha": 3,
+      "dilation_exponential": 1
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 0,
+      "clip_grad": 5,
+      "lr_milestones": [],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "none",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Official horizon curriculum (cl=True, step_size1=2500) is not implemented by the local engine. Local input has 3 vs official 2 channels.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STAEFORMER": {
+    "status": "official_adapted",
+    "repository": "https://github.com/XDZhelheim/STAEformer",
+    "commit": "fc49d39b2f1a8e3cf37b6289d7240680e1690f3f",
+    "profile": "PEMS04",
+    "sources": [
+      "https://github.com/XDZhelheim/STAEformer/blob/fc49d39b2f1a8e3cf37b6289d7240680e1690f3f/model/STAEformer.yaml",
+      "https://github.com/XDZhelheim/STAEformer/blob/fc49d39b2f1a8e3cf37b6289d7240680e1690f3f/model/train.py"
+    ],
+    "official_config": {
+      "model/STAEformer.yaml": {
+        "METRLA": {
+          "num_nodes": 207,
+          "in_steps": 12,
+          "out_steps": 12,
+          "train_size": 0.7,
+          "val_size": 0.1,
+          "time_of_day": true,
+          "day_of_week": true,
+          "lr": 0.001,
+          "weight_decay": 0.0003,
+          "milestones": [
+            20,
+            30
+          ],
+          "lr_decay_rate": 0.1,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 30,
+          "use_cl": false,
+          "cl_step_size": 2500,
+          "model_args": {
+            "num_nodes": 207,
+            "in_steps": 12,
+            "out_steps": 12,
+            "steps_per_day": 288,
+            "input_dim": 3,
+            "output_dim": 1,
+            "input_embedding_dim": 24,
+            "tod_embedding_dim": 24,
+            "dow_embedding_dim": 24,
+            "spatial_embedding_dim": 0,
+            "adaptive_embedding_dim": 80,
+            "feed_forward_dim": 256,
+            "num_heads": 4,
+            "num_layers": 3,
+            "dropout": 0.1
+          }
+        },
+        "PEMSBAY": {
+          "num_nodes": 325,
+          "in_steps": 12,
+          "out_steps": 12,
+          "train_size": 0.7,
+          "val_size": 0.1,
+          "time_of_day": true,
+          "day_of_week": true,
+          "lr": 0.001,
+          "weight_decay": 0.0001,
+          "milestones": [
+            10,
+            30
+          ],
+          "lr_decay_rate": 0.1,
+          "batch_size": 16,
+          "max_epochs": 300,
+          "early_stop": 20,
+          "use_cl": false,
+          "model_args": {
+            "num_nodes": 325,
+            "in_steps": 12,
+            "out_steps": 12,
+            "steps_per_day": 288,
+            "input_dim": 3,
+            "output_dim": 1,
+            "input_embedding_dim": 24,
+            "tod_embedding_dim": 24,
+            "dow_embedding_dim": 24,
+            "spatial_embedding_dim": 0,
+            "adaptive_embedding_dim": 80,
+            "feed_forward_dim": 256,
+            "num_heads": 4,
+            "num_layers": 3,
+            "dropout": 0.1
+          }
+        },
+        "PEMS04": {
+          "num_nodes": 307,
+          "in_steps": 12,
+          "out_steps": 12,
+          "train_size": 0.6,
+          "val_size": 0.2,
+          "time_of_day": true,
+          "day_of_week": true,
+          "lr": 0.001,
+          "weight_decay": 0.0005,
+          "milestones": [
+            15,
+            30,
+            50
+          ],
+          "lr_decay_rate": 0.1,
+          "batch_size": 16,
+          "max_epochs": 300,
+          "early_stop": 20,
+          "use_cl": false,
+          "cl_step_size": 2500,
+          "model_args": {
+            "num_nodes": 307,
+            "in_steps": 12,
+            "out_steps": 12,
+            "steps_per_day": 288,
+            "input_dim": 3,
+            "output_dim": 1,
+            "input_embedding_dim": 24,
+            "tod_embedding_dim": 24,
+            "dow_embedding_dim": 24,
+            "spatial_embedding_dim": 0,
+            "adaptive_embedding_dim": 80,
+            "feed_forward_dim": 256,
+            "num_heads": 4,
+            "num_layers": 3,
+            "dropout": 0.1
+          }
+        },
+        "PEMS07": {
+          "num_nodes": 883,
+          "in_steps": 12,
+          "out_steps": 12,
+          "train_size": 0.6,
+          "val_size": 0.2,
+          "time_of_day": true,
+          "day_of_week": true,
+          "lr": 0.001,
+          "weight_decay": 0.001,
+          "milestones": [
+            15,
+            35,
+            50
+          ],
+          "lr_decay_rate": 0.1,
+          "batch_size": 16,
+          "max_epochs": 300,
+          "early_stop": 20,
+          "use_cl": false,
+          "cl_step_size": 2500,
+          "model_args": {
+            "num_nodes": 883,
+            "in_steps": 12,
+            "out_steps": 12,
+            "steps_per_day": 288,
+            "input_dim": 3,
+            "output_dim": 1,
+            "input_embedding_dim": 24,
+            "tod_embedding_dim": 24,
+            "dow_embedding_dim": 24,
+            "spatial_embedding_dim": 0,
+            "adaptive_embedding_dim": 80,
+            "feed_forward_dim": 256,
+            "num_heads": 4,
+            "num_layers": 3,
+            "dropout": 0.1
+          }
+        },
+        "PEMS08": {
+          "num_nodes": 170,
+          "in_steps": 12,
+          "out_steps": 12,
+          "train_size": 0.6,
+          "val_size": 0.2,
+          "time_of_day": true,
+          "day_of_week": true,
+          "lr": 0.001,
+          "weight_decay": 0.0015,
+          "milestones": [
+            25,
+            45,
+            65
+          ],
+          "lr_decay_rate": 0.1,
+          "batch_size": 16,
+          "max_epochs": 300,
+          "early_stop": 30,
+          "use_cl": false,
+          "cl_step_size": 2500,
+          "model_args": {
+            "num_nodes": 170,
+            "in_steps": 12,
+            "out_steps": 12,
+            "steps_per_day": 288,
+            "input_dim": 3,
+            "output_dim": 1,
+            "input_embedding_dim": 24,
+            "tod_embedding_dim": 24,
+            "dow_embedding_dim": 24,
+            "spatial_embedding_dim": 0,
+            "adaptive_embedding_dim": 80,
+            "feed_forward_dim": 256,
+            "num_heads": 4,
+            "num_layers": 3,
+            "dropout": 0.1
+          }
+        },
+        "PEMS03": {
+          "num_nodes": 358,
+          "in_steps": 12,
+          "out_steps": 12,
+          "train_size": 0.6,
+          "val_size": 0.2,
+          "time_of_day": true,
+          "day_of_week": true,
+          "lr": 0.001,
+          "weight_decay": 0.0005,
+          "milestones": [
+            15,
+            30,
+            40
+          ],
+          "lr_decay_rate": 0.1,
+          "batch_size": 16,
+          "max_epochs": 300,
+          "early_stop": 20,
+          "use_cl": false,
+          "cl_step_size": 2500,
+          "model_args": {
+            "num_nodes": 358,
+            "in_steps": 12,
+            "out_steps": 12,
+            "steps_per_day": 288,
+            "input_dim": 3,
+            "output_dim": 1,
+            "input_embedding_dim": 24,
+            "tod_embedding_dim": 24,
+            "dow_embedding_dim": 24,
+            "spatial_embedding_dim": 0,
+            "adaptive_embedding_dim": 80,
+            "feed_forward_dim": 256,
+            "num_heads": 4,
+            "num_layers": 3,
+            "dropout": 0.1
+          }
+        }
+      },
+      "model/train.py": {
+        "-d": "pems08",
+        "-g": 0,
+        "literal_assignments": {
+          "batch_loss_list": [],
+          "y": [],
+          "out": [],
+          "wait": 0,
+          "train_loss_list": [],
+          "val_loss_list": []
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 24,
+      "tod_embedding_dim": 24,
+      "dow_embedding_dim": 24,
+      "spatial_embedding_dim": 0,
+      "adaptive_embedding_dim": 80,
+      "feed_forward_dim": 256,
+      "num_heads": 4,
+      "num_layers": 3,
+      "dropout": 0.1,
+      "use_mixed_proj": true
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0.0005,
+      "epochs": 300,
+      "batch_size": 16,
+      "early_stop_patience": 20,
+      "clip_grad": 0,
+      "lr_milestones": [
+        15,
+        30,
+        50
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "PEMS04 is the explicit transfer preset for local city datasets; other official dataset presets are preserved in official_config.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "HIMNET": {
+    "status": "official_adapted",
+    "repository": "https://github.com/XDZhelheim/HimNet",
+    "commit": "2a9aa44d1864f6fb60bdf9d14bafd6c1681e81a5",
+    "profile": "PEMS04",
+    "sources": [
+      "https://github.com/XDZhelheim/HimNet/blob/2a9aa44d1864f6fb60bdf9d14bafd6c1681e81a5/model/HimNet.yaml",
+      "https://github.com/XDZhelheim/HimNet/blob/2a9aa44d1864f6fb60bdf9d14bafd6c1681e81a5/scripts/train.py"
+    ],
+    "official_config": {
+      "model/HimNet.yaml": {
+        "METRLA": {
+          "num_nodes": 207,
+          "in_steps": 12,
+          "out_steps": 12,
+          "time_of_day": true,
+          "day_of_week": true,
+          "y_time_of_day": true,
+          "y_day_of_week": true,
+          "lr": 0.001,
+          "eps": 0.001,
+          "weight_decay": 0.0005,
+          "milestones": [
+            30,
+            40
+          ],
+          "clip_grad": 5,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 20,
+          "model_args": {
+            "num_nodes": 207,
+            "input_dim": 3,
+            "output_dim": 1,
+            "out_steps": 12,
+            "hidden_dim": 64,
+            "num_layers": 1,
+            "cheb_k": 2,
+            "ycov_dim": 2,
+            "tod_embedding_dim": 8,
+            "dow_embedding_dim": 8,
+            "node_embedding_dim": 16,
+            "st_embedding_dim": 16,
+            "tf_decay_steps": 6000,
+            "use_teacher_forcing": true
+          }
+        },
+        "PEMSBAY": {
+          "num_nodes": 325,
+          "in_steps": 12,
+          "out_steps": 12,
+          "time_of_day": true,
+          "day_of_week": true,
+          "y_time_of_day": true,
+          "y_day_of_week": true,
+          "lr": 0.001,
+          "eps": 0.001,
+          "weight_decay": 0.0001,
+          "milestones": [
+            25,
+            35
+          ],
+          "clip_grad": 5,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 20,
+          "model_args": {
+            "num_nodes": 325,
+            "input_dim": 3,
+            "output_dim": 1,
+            "tod_embedding_dim": 8,
+            "dow_embedding_dim": 8,
+            "out_steps": 12,
+            "hidden_dim": 64,
+            "num_layers": 1,
+            "cheb_k": 2,
+            "ycov_dim": 2,
+            "node_embedding_dim": 16,
+            "st_embedding_dim": 16,
+            "tf_decay_steps": 6000,
+            "use_teacher_forcing": true
+          }
+        },
+        "PEMS03": {
+          "num_nodes": 358,
+          "in_steps": 12,
+          "out_steps": 12,
+          "time_of_day": true,
+          "day_of_week": true,
+          "y_time_of_day": true,
+          "y_day_of_week": true,
+          "lr": 0.001,
+          "eps": 0.001,
+          "weight_decay": 0.0003,
+          "milestones": [
+            30,
+            50
+          ],
+          "clip_grad": 5,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 20,
+          "model_args": {
+            "num_nodes": 358,
+            "input_dim": 3,
+            "output_dim": 1,
+            "tod_embedding_dim": 8,
+            "dow_embedding_dim": 8,
+            "out_steps": 12,
+            "hidden_dim": 64,
+            "num_layers": 1,
+            "cheb_k": 2,
+            "ycov_dim": 2,
+            "node_embedding_dim": 16,
+            "st_embedding_dim": 16,
+            "tf_decay_steps": 4000,
+            "use_teacher_forcing": true
+          }
+        },
+        "PEMS04": {
+          "num_nodes": 307,
+          "in_steps": 12,
+          "out_steps": 12,
+          "time_of_day": true,
+          "day_of_week": true,
+          "y_time_of_day": true,
+          "y_day_of_week": true,
+          "lr": 0.001,
+          "eps": 0.001,
+          "weight_decay": 0.0001,
+          "milestones": [
+            30,
+            50
+          ],
+          "clip_grad": 5,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 20,
+          "model_args": {
+            "num_nodes": 307,
+            "input_dim": 3,
+            "output_dim": 1,
+            "tod_embedding_dim": 12,
+            "dow_embedding_dim": 4,
+            "out_steps": 12,
+            "hidden_dim": 64,
+            "num_layers": 1,
+            "cheb_k": 2,
+            "ycov_dim": 2,
+            "node_embedding_dim": 16,
+            "st_embedding_dim": 16,
+            "tf_decay_steps": 4000,
+            "use_teacher_forcing": true
+          }
+        },
+        "PEMS07": {
+          "num_nodes": 883,
+          "in_steps": 12,
+          "out_steps": 12,
+          "time_of_day": true,
+          "day_of_week": true,
+          "y_time_of_day": true,
+          "y_day_of_week": true,
+          "lr": 0.001,
+          "eps": 0.001,
+          "weight_decay": 0.0001,
+          "milestones": [
+            40,
+            60
+          ],
+          "clip_grad": 5,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 20,
+          "model_args": {
+            "num_nodes": 883,
+            "input_dim": 3,
+            "output_dim": 1,
+            "tod_embedding_dim": 8,
+            "dow_embedding_dim": 8,
+            "out_steps": 12,
+            "hidden_dim": 64,
+            "num_layers": 1,
+            "cheb_k": 2,
+            "ycov_dim": 2,
+            "node_embedding_dim": 16,
+            "st_embedding_dim": 16,
+            "tf_decay_steps": 6000,
+            "use_teacher_forcing": true
+          }
+        },
+        "PEMS08": {
+          "num_nodes": 170,
+          "in_steps": 12,
+          "out_steps": 12,
+          "time_of_day": true,
+          "day_of_week": true,
+          "y_time_of_day": true,
+          "y_day_of_week": true,
+          "lr": 0.001,
+          "eps": 0.001,
+          "weight_decay": 0,
+          "milestones": [
+            40,
+            60,
+            80
+          ],
+          "clip_grad": 5,
+          "batch_size": 16,
+          "max_epochs": 200,
+          "early_stop": 20,
+          "model_args": {
+            "num_nodes": 170,
+            "input_dim": 3,
+            "output_dim": 1,
+            "tod_embedding_dim": 10,
+            "dow_embedding_dim": 2,
+            "out_steps": 12,
+            "hidden_dim": 96,
+            "num_layers": 1,
+            "cheb_k": 2,
+            "ycov_dim": 2,
+            "node_embedding_dim": 14,
+            "st_embedding_dim": 10,
+            "tf_decay_steps": 6000,
+            "use_teacher_forcing": true
+          }
+        }
+      },
+      "scripts/train.py": {
+        "-d": "METRLA",
+        "-g": 0,
+        "--seed": 0,
+        "--cpus": 1,
+        "literal_assignments": {
+          "wait": 0,
+          "train_loss_list": [],
+          "val_loss_list": [],
+          "model_name": "HimNet"
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 64,
+      "num_layers": 1,
+      "cheb_k": 2,
+      "tod_embedding_dim": 12,
+      "dow_embedding_dim": 4,
+      "node_embedding_dim": 16,
+      "st_embedding_dim": 16,
+      "tf_decay_steps": 4000,
+      "use_teacher_forcing": true
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "epochs": 200,
+      "batch_size": 16,
+      "early_stop_patience": 20,
+      "clip_grad": 5,
+      "lr_milestones": [
+        30,
+        50
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 0.001,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Calendar sizes and future covariates follow the local dataset.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "MEGACRN": {
+    "status": "official_adapted",
+    "repository": "https://github.com/deepkashiwa20/MegaCRN",
+    "commit": "5158190948de7e8628f84780a429eb9189f5908f",
+    "profile": "METRLA",
+    "sources": [
+      "https://github.com/deepkashiwa20/MegaCRN/blob/5158190948de7e8628f84780a429eb9189f5908f/model/traintest_MegaCRN.py",
+      "https://github.com/deepkashiwa20/MegaCRN/blob/5158190948de7e8628f84780a429eb9189f5908f/model/MegaCRN.py"
+    ],
+    "official_config": {
+      "model/traintest_MegaCRN.py": {
+        "--dataset": "METRLA",
+        "--trainval_ratio": 0.8,
+        "--val_ratio": 0.125,
+        "--num_nodes": 207,
+        "--seq_len": 12,
+        "--horizon": 12,
+        "--input_dim": 1,
+        "--output_dim": 1,
+        "--max_diffusion_step": 3,
+        "--num_rnn_layers": 1,
+        "--rnn_units": 64,
+        "--mem_num": 20,
+        "--mem_dim": 64,
+        "--loss": "mask_mae_loss",
+        "--lamb": 0.01,
+        "--lamb1": 0.01,
+        "--epochs": 200,
+        "--patience": 20,
+        "--batch_size": 64,
+        "--lr": 0.01,
+        "--steps": [
+          50,
+          100
+        ],
+        "--lr_decay_ratio": 0.1,
+        "--epsilon": 0.001,
+        "--max_grad_norm": 5,
+        "--use_curriculum_learning": "True",
+        "--cl_decay_steps": 2000,
+        "--test_every_n_epochs": 5,
+        "--gpu": 0,
+        "literal_assignments": {
+          "model_name": "MegaCRN",
+          "cpu_num": 1,
+          "data": {},
+          "param_count": 0,
+          "wait": 0,
+          "batches_seen": 0,
+          "args.num_nodes": 325,
+          "losses": [],
+          "spliter": " "
+        }
+      },
+      "model/MegaCRN.py": {
+        "--gpu": 3,
+        "--num_variable": 207,
+        "--his_len": 12,
+        "--seq_len": 12,
+        "--channelin": 1,
+        "--channelout": 1,
+        "--rnn_units": 64,
+        "literal_assignments": {
+          "param_count": 0,
+          "x_g": [],
+          "support_set": [],
+          "output_hidden": [],
+          "init_states": [],
+          "out": [],
+          "inner_states": []
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 64,
+      "num_layers": 1,
+      "cheb_k": 3,
+      "mem_num": 20,
+      "mem_dim": 64,
+      "cl_decay_steps": 2000,
+      "use_curriculum_learning": true,
+      "ycov_dim": 2,
+      "lamb": 0.01,
+      "lamb1": 0.01
+    },
+    "training": {
+      "learning_rate": 0.01,
+      "weight_decay": 0,
+      "epochs": 200,
+      "batch_size": 64,
+      "early_stop_patience": 20,
+      "clip_grad": 5,
+      "lr_milestones": [
+        50,
+        100
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 0.001,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Local forward ignores curriculum and generates random calendar placeholders (official ycov_dim=1; local requires 2). Shared engine does not use official memory auxiliary losses. This is not an official reproduction.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STDN": {
+    "status": "official_adapted",
+    "repository": "https://github.com/roarer008/STDN",
+    "commit": "e24a60fa9485fb9805df9c171d67ab60840d757d",
+    "profile": "PEMSD4",
+    "sources": [
+      "https://github.com/roarer008/STDN/blob/e24a60fa9485fb9805df9c171d67ab60840d757d/conf/PEMSD4_1dim_12.conf",
+      "https://github.com/roarer008/STDN/blob/e24a60fa9485fb9805df9c171d67ab60840d757d/train.py"
+    ],
+    "official_config": {
+      "conf/PEMSD4_1dim_12.conf": {
+        "Data": {
+          "graph_signal_matrix_filename": "data/PEMS04/samples_12_12_5.npz",
+          "distance_csv_path": "data/PEMS04/PEMS04.csv",
+          "dataset_name": "PEMSD4_1dim",
+          "num_of_vertices": "307",
+          "time_slice_size": "5"
+        },
+        "Training": {
+          "use_nni": "0",
+          "gpu": "1",
+          "ctx": "1",
+          "l": "2",
+          "k": "16",
+          "d": "8",
+          "mode": "train",
+          "batch_size": "64",
+          "epochs": "200",
+          "learning_rate": "0.001",
+          "patience": "10",
+          "decay_epoch": "10",
+          "num_his": "12",
+          "num_pred": "12",
+          "in_channels": "1",
+          "out_channels": "1",
+          "t_miss_len": "12",
+          "node_miss_rate": "0.1",
+          "self_weight_dis": "0.05",
+          "reference": "3",
+          "order": "3"
+        }
+      },
+      "train.py": {
+        "--config": "conf/PEMSD4_1dim_12.conf",
+        "literal_assignments": {
+          "wait": 0,
+          "best_model_wts": null,
+          "best_epoch": -1,
+          "exp_datadir": "experiments/SSTBAN/",
+          "train_time_epochs": [],
+          "val_time_epochs": [],
+          "columns": [
+            "loss",
+            "mae",
+            "rmse",
+            "mape"
+          ],
+          "index": [
+            "train",
+            "test",
+            "val"
+          ],
+          "values": [],
+          "train_loss": 0,
+          "val_loss": 0,
+          "trainPred": [],
+          "valPred": [],
+          "testPred": []
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 128,
+      "K": 16,
+      "d": 8,
+      "L": 2,
+      "order": 3,
+      "bn_decay": 0.1
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0,
+      "epochs": 200,
+      "batch_size": 64,
+      "early_stop_patience": 10,
+      "clip_grad": 0,
+      "lr_milestones": [],
+      "lr_gamma": 0.9,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "step",
+      "lr_step_size": 10,
+      "train_loss": "mae"
+    },
+    "notes": [
+      "model_dim=K*d. time_slice_size follows local sampling minutes.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits.",
+      "Existing positional encoding requires at least 32 nodes when computed from a square adjacency."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "DCRNN": {
+    "status": "official_adapted",
+    "repository": "https://github.com/liyaguang/DCRNN",
+    "commit": "602afd9d767d3aa1c9b3eac51710d6aeee12c227",
+    "profile": "METR-LA",
+    "sources": [
+      "https://github.com/liyaguang/DCRNN/blob/602afd9d767d3aa1c9b3eac51710d6aeee12c227/data/model/dcrnn_la.yaml",
+      "https://github.com/liyaguang/DCRNN/blob/602afd9d767d3aa1c9b3eac51710d6aeee12c227/model/dcrnn_supervisor.py"
+    ],
+    "official_config": {
+      "data/model/dcrnn_la.yaml": {
+        "base_dir": "data/model",
+        "log_level": "INFO",
+        "data": {
+          "batch_size": 64,
+          "dataset_dir": "data/METR-LA",
+          "test_batch_size": 64,
+          "val_batch_size": 64,
+          "graph_pkl_filename": "data/sensor_graph/adj_mx.pkl"
+        },
+        "model": {
+          "cl_decay_steps": 2000,
+          "filter_type": "dual_random_walk",
+          "horizon": 12,
+          "input_dim": 2,
+          "l1_decay": 0,
+          "max_diffusion_step": 2,
+          "num_nodes": 207,
+          "num_rnn_layers": 2,
+          "output_dim": 1,
+          "rnn_units": 64,
+          "seq_len": 12,
+          "use_curriculum_learning": true
+        },
+        "train": {
+          "base_lr": 0.01,
+          "dropout": 0,
+          "epoch": 0,
+          "epochs": 100,
+          "epsilon": 0.001,
+          "global_step": 0,
+          "lr_decay_ratio": 0.1,
+          "max_grad_norm": 5,
+          "max_to_keep": 100,
+          "min_learning_rate": 2e-06,
+          "optimizer": "adam",
+          "patience": 50,
+          "steps": [
+            20,
+            30,
+            40,
+            50
+          ],
+          "test_every_n_epochs": 10
+        }
+      },
+      "model/dcrnn_supervisor.py": {
+        "literal_assignments": {
+          "null_val": 0.0,
+          "self._epoch": 0,
+          "losses": [],
+          "maes": [],
+          "outputs": [],
+          "history": [],
+          "wait": 0,
+          "predictions": [],
+          "y_truths": [],
+          "filter_type_abbr": "DR"
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 64,
+      "num_rnn_layers": 2,
+      "rnn_units": 64,
+      "max_diffusion_step": 2,
+      "filter_type": "dual_random_walk",
+      "use_curriculum_learning": true,
+      "cl_decay_steps": 2000
+    },
+    "training": {
+      "learning_rate": 0.01,
+      "weight_decay": 0,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 50,
+      "clip_grad": 5,
+      "lr_milestones": [
+        20,
+        30,
+        40,
+        50
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 0.001,
+      "lr_scheduler": "multistep",
+      "min_learning_rate": 2e-06,
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Official TensorFlow model uses 2 input channels; local implementation uses demand only.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STSSL": {
+    "status": "official_adapted",
+    "repository": "https://github.com/Echo-Ji/ST-SSL",
+    "commit": "b3f3dfc48d12524c207cc89f4e242cb8aac081c0",
+    "profile": "NYCTaxi",
+    "sources": [
+      "https://github.com/Echo-Ji/ST-SSL/blob/b3f3dfc48d12524c207cc89f4e242cb8aac081c0/configs/NYCTaxi.yaml",
+      "https://github.com/Echo-Ji/ST-SSL/blob/b3f3dfc48d12524c207cc89f4e242cb8aac081c0/model/models.py",
+      "https://github.com/Echo-Ji/ST-SSL/blob/b3f3dfc48d12524c207cc89f4e242cb8aac081c0/model/trainer.py"
+    ],
+    "official_config": {
+      "configs/NYCTaxi.yaml": {
+        "seed": 31,
+        "device": "cuda",
+        "mode": "train",
+        "best_path": "None",
+        "debug": false,
+        "data_dir": "data",
+        "dataset": "NYCTaxi",
+        "input_length": 35,
+        "batch_size": 32,
+        "test_batch_size": 32,
+        "graph_file": "data/NYCTaxi/adj_mx.npz",
+        "d_input": 2,
+        "d_output": 2,
+        "d_model": 64,
+        "dropout": 0.1,
+        "percent": 0.1,
+        "shm_temp": 0.5,
+        "nmb_prototype": 4,
+        "yita": 0.5,
+        "epochs": 100,
+        "lr_init": 0.001,
+        "early_stop": true,
+        "early_stop_patience": 15,
+        "grad_norm": true,
+        "max_grad_norm": 5,
+        "use_dwa": true,
+        "temp": 2
+      },
+      "model/trainer.py": {
+        "literal_assignments": {
+          "total_loss": 0,
+          "total_val_loss": 0,
+          "best_epoch": 0,
+          "not_improved_count": 0,
+          "y_pred": [],
+          "y_true": [],
+          "test_results": []
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 64,
+      "num_layers": 2,
+      "dropout": 0.1,
+      "nmb_prototype": 4,
+      "spatial_temp": 0.5,
+      "augmentation_percent": 0.1
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0,
+      "epochs": 100,
+      "batch_size": 32,
+      "early_stop_patience": 15,
+      "clip_grad": 5,
+      "lr_milestones": [],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "none",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Official input_length=35 (noncontiguous history), output=1 step with inflow/outflow; local uses contiguous history and single-channel multi-step head. Official DWA (temp=2) is not implemented; local fixed auxiliary weights remain.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STSSDL": {
+    "status": "official_adapted",
+    "repository": "https://github.com/Jimmy-7664/ST-SSDL",
+    "commit": "a98331d3a45a081778f3abb608897902a60e301d",
+    "profile": "METRLA argparse defaults",
+    "sources": [
+      "https://github.com/Jimmy-7664/ST-SSDL/blob/a98331d3a45a081778f3abb608897902a60e301d/model_STSSDL/train_STSSDL.py",
+      "https://github.com/Jimmy-7664/ST-SSDL/blob/a98331d3a45a081778f3abb608897902a60e301d/model_STSSDL/STSSDL.py"
+    ],
+    "official_config": {
+      "model_STSSDL/train_STSSDL.py": {
+        "--dataset": "METRLA",
+        "--num_nodes": 207,
+        "--seq_len": 12,
+        "--horizon": 12,
+        "--input_dim": 1,
+        "--output_dim": 1,
+        "--tod_embed_dim": 10,
+        "--cheb_k": 3,
+        "--rnn_layers": 1,
+        "--rnn_units": 128,
+        "--prototype_num": 20,
+        "--prototype_dim": 64,
+        "--loss": "mask_mae_loss",
+        "--epochs": 200,
+        "--patience": 30,
+        "--batch_size": 64,
+        "--lr": 0.01,
+        "--steps": [
+          50,
+          100
+        ],
+        "--lr_decay_ratio": 0.1,
+        "--weight_decay": 0,
+        "--epsilon": 0.001,
+        "--max_grad_norm": 5,
+        "--use_curriculum_learning": "True",
+        "--adj_type": "symadj",
+        "--cl_decay_steps": 2000,
+        "--gpu": 0,
+        "--seed": 100,
+        "--temp": 1.0,
+        "--lamb_c": 0.1,
+        "--lamb_d": 1.0,
+        "--contra_loss": "triplet",
+        "--use_STE": "True",
+        "--adaptive_embedding_dim": 48,
+        "--node_embedding_dim": 20,
+        "--input_embedding_dim": 128,
+        "literal_assignments": {
+          "num_nodes_dict": {
+            "METRLA": 207,
+            "PEMSBAY": 325,
+            "PEMS04": 307,
+            "PEMS07": 883,
+            "PEMS08": 170,
+            "PEMSD7M": 228
+          },
+          "model_name": "STSSDL",
+          "cpu_num": 1,
+          "data": {},
+          "param_count": 0,
+          "wait": 0,
+          "batches_seen": 0,
+          "args.num_nodes": 325,
+          "args.use_STE": true,
+          "args.seed": 119089,
+          "args.lamb_c": 0.1,
+          "args.lamb_d": 1,
+          "args.steps": [
+            50,
+            100
+          ],
+          "args.input_embedding_dim": 32,
+          "args.node_embedding_dim": 20,
+          "args.tod_embed_dim": 16,
+          "args.adaptive_embedding_dim": 0,
+          "losses": [],
+          "args.cl_decay_steps": 4000,
+          "spliter": " ",
+          "args.patience": 30,
+          "args.batch_size": 16,
+          "args.lr": 0.001,
+          "args.epochs": 200,
+          "args.weight_decay": 0,
+          "args.max_grad_norm": 0,
+          "args.rnn_units": 32,
+          "args.prototype_num": 16,
+          "args.prototype_dim": 64,
+          "args.max_diffusion_step": 3,
+          "args.use_curriculum_learning": true
+        }
+      },
+      "model_STSSDL/STSSDL.py": {
+        "literal_assignments": {
+          "param_count": 0,
+          "x_g": [],
+          "output_hidden": [],
+          "init_states": [],
+          "self.act_fn": "sigmoid",
+          "out": [],
+          "inner_states": []
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 128,
+      "rnn_units": 128,
+      "rnn_layers": 1,
+      "cheb_k": 3,
+      "prototype_num": 20,
+      "prototype_dim": 64,
+      "tod_embed_dim": 10,
+      "node_embed_dim": 20,
+      "adaptive_embed_dim": 48,
+      "lambda_contrastive": 0.1,
+      "lambda_deviation": 1.0,
+      "cl_decay_steps": 2000,
+      "use_curriculum_learning": false
+    },
+    "training": {
+      "learning_rate": 0.01,
+      "weight_decay": 0,
+      "epochs": 200,
+      "batch_size": 64,
+      "early_stop_patience": 30,
+      "clip_grad": 5,
+      "lr_milestones": [
+        50,
+        100
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 0.001,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Official use_curriculum_learning=True; local weekly-flow-anchor variant deliberately disables it. Local history fitted on training inputs only; contrastive implementation may differ from official triplet.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STGCN": {
+    "status": "official_adapted",
+    "repository": "https://github.com/VeritasYin/STGCN_IJCAI-18",
+    "commit": "4ab75ab69af354d6a0ab86aefa082d389b187127",
+    "profile": "PeMSD7(M)",
+    "sources": [
+      "https://github.com/VeritasYin/STGCN_IJCAI-18/blob/4ab75ab69af354d6a0ab86aefa082d389b187127/main.py",
+      "https://github.com/VeritasYin/STGCN_IJCAI-18/blob/4ab75ab69af354d6a0ab86aefa082d389b187127/models/trainer.py"
+    ],
+    "official_config": {
+      "main.py": {
+        "--n_route": 228,
+        "--n_his": 12,
+        "--n_pred": 9,
+        "--batch_size": 50,
+        "--epoch": 50,
+        "--save": 10,
+        "--ks": 3,
+        "--kt": 3,
+        "--lr": 0.001,
+        "--opt": "RMSProp",
+        "--graph": "default",
+        "--inf_mode": "merge",
+        "literal_assignments": {
+          "config.gpu_options.allow_growth": true,
+          "blocks": [
+            [
+              1,
+              32,
+              64
+            ],
+            [
+              64,
+              32,
+              128
+            ]
+          ]
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 64,
+      "num_layers": 2,
+      "dropout": 0
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 0,
+      "epochs": 50,
+      "batch_size": 50,
+      "early_stop_patience": 0,
+      "clip_grad": 0,
+      "lr_milestones": [],
+      "lr_gamma": 0.7,
+      "optimizer": "rmsprop",
+      "optimizer_eps": 1e-10,
+      "lr_scheduler": "step",
+      "lr_step_size": 5,
+      "rmsprop_alpha": 0.9,
+      "train_loss": "mse"
+    },
+    "notes": [
+      "Official bottleneck blocks [[1,32,64],[64,32,128]], Ks=Kt=3 cannot be represented by local simplified constant-width first-order graph convolution. Official loss is tf.nn.l2_loss on standardized single-step predictions; local uses demand-unit mean squared error. RMSProp uses PyTorch semantics; this is not exact TensorFlow reproduction.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits.",
+      "Existing local output retains a trailing history axis; shared engine averages it. This differs from official single-step autoregressive forecasting."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STNORM": {
+    "status": "official_adapted",
+    "repository": "https://github.com/JLDeng/ST-Norm",
+    "commit": "ae228bd93e33355f6b84deec43e447b0b062dad4",
+    "profile": "electricity / Wavenet",
+    "sources": [
+      "https://github.com/JLDeng/ST-Norm/blob/ae228bd93e33355f6b84deec43e447b0b062dad4/main.py",
+      "https://github.com/JLDeng/ST-Norm/blob/ae228bd93e33355f6b84deec43e447b0b062dad4/models/Wavenet.py",
+      "https://github.com/JLDeng/ST-Norm/blob/ae228bd93e33355f6b84deec43e447b0b062dad4/README.md"
+    ],
+    "official_config": {
+      "main.py": {
+        "--version": 0,
+        "--model": "wavenet",
+        "--mode": "train",
+        "--snorm": 1,
+        "--tnorm": 1,
+        "--n_his": 16,
+        "--n_pred": 3,
+        "--n_layers": 4,
+        "--hidden_channels": 16,
+        "literal_assignments": {
+          "torch.backends.cudnn.benchmark": true,
+          "batch_size": 8,
+          "test_batch_size": 48,
+          "lr": 0.0001,
+          "min_rmse": 1000,
+          "stop": 0,
+          "nb_epoch": 1000,
+          "vas": [],
+          "tes": [],
+          "n": 336,
+          "n_slots": 24
+        }
+      },
+      "models/Wavenet.py": {
+        "literal_assignments": {
+          "receptive_field": 1,
+          "self.dilation": [],
+          "skip": 0,
+          "new_dilation": 1,
+          "x_list": []
+        }
+      }
+    },
+    "model": {
+      "input_embedding_dim": 16,
+      "blocks": 1,
+      "num_layers": 4,
+      "kernel_size": 2,
+      "snorm_bool": true,
+      "tnorm_bool": true,
+      "dropout": 0
+    },
+    "training": {
+      "learning_rate": 0.0001,
+      "weight_decay": 0,
+      "epochs": 1000,
+      "batch_size": 8,
+      "early_stop_patience": 50,
+      "clip_grad": 10,
+      "lr_milestones": [],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "none",
+      "train_loss": "mse"
+    },
+    "notes": [
+      "Official script trains electricity, not a traffic-specific preset. Official validation every 10 epochs, stop after 5 checks; local validation every epoch with patience=50 is an approximation. Official MinMax scaling and RMSE checkpoint selection differ from local standardization and MAE selection. Wavenet defines dropout=0.2 but never applies it; effective local dropout=0.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "STID": {
+    "status": "official_adapted",
+    "repository": "https://github.com/GestaltCogTeam/STID",
+    "commit": "e8b313bc591bdd0101a1619962c9b503e75127c0",
+    "profile": "PEMS04",
+    "sources": [
+      "https://github.com/GestaltCogTeam/STID/blob/e8b313bc591bdd0101a1619962c9b503e75127c0/stid/PEMS04.py"
+    ],
+    "official_config": {
+      "stid/PEMS04.py": {
+        "literal_assignments": {
+          "DATA_NAME": "PEMS04",
+          "NUM_EPOCHS": 100,
+          "CFG.DESCRIPTION": "An Example Config",
+          "CFG.GPU_NUM": 1,
+          "CFG.MODEL.FORWARD_FEATURES": [
+            0,
+            1,
+            2
+          ],
+          "CFG.MODEL.TARGET_FEATURES": [
+            0
+          ],
+          "CFG.METRICS.TARGET": "MAE",
+          "CFG.TRAIN.OPTIM.TYPE": "Adam",
+          "CFG.TRAIN.OPTIM.PARAM": {
+            "lr": 0.002,
+            "weight_decay": 0.0001
+          },
+          "CFG.TRAIN.LR_SCHEDULER.TYPE": "MultiStepLR",
+          "CFG.TRAIN.LR_SCHEDULER.PARAM": {
+            "milestones": [
+              1,
+              50,
+              80
+            ],
+            "gamma": 0.5
+          },
+          "CFG.TRAIN.CLIP_GRAD_PARAM": {
+            "max_norm": 5.0
+          },
+          "CFG.TRAIN.DATA.BATCH_SIZE": 64,
+          "CFG.TRAIN.DATA.SHUFFLE": true,
+          "CFG.VAL.INTERVAL": 1,
+          "CFG.VAL.DATA.BATCH_SIZE": 64,
+          "CFG.TEST.INTERVAL": 1,
+          "CFG.TEST.DATA.BATCH_SIZE": 64,
+          "CFG.EVAL.HORIZONS": [
+            3,
+            6,
+            12
+          ],
+          "CFG.EVAL.USE_GPU": true
+        }
+      },
+      "model_parameters": {
+        "num_nodes": 307,
+        "input_dim": 3,
+        "embed_dim": 32,
+        "num_layer": 3,
+        "node_dim": 32,
+        "temp_dim_tid": 32,
+        "temp_dim_diw": 32,
+        "time_of_day_size": 288,
+        "day_of_week_size": 7,
+        "if_node": true,
+        "if_T_i_D": true,
+        "if_D_i_W": true,
+        "input_len": "dataset regular settings",
+        "output_len": "dataset regular settings"
+      }
+    },
+    "model": {
+      "input_embedding_dim": 32,
+      "num_layers": 3,
+      "spatial_emb_dim": 32,
+      "temp_dim_tid": 32,
+      "temp_dim_diw": 32,
+      "if_spatial": true,
+      "if_time_in_day": true,
+      "if_day_in_week": true
+    },
+    "training": {
+      "learning_rate": 0.002,
+      "weight_decay": 0.0001,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 0,
+      "clip_grad": 5,
+      "lr_milestones": [
+        1,
+        50,
+        80
+      ],
+      "lr_gamma": 0.5,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Official time_of_day_size=288 is adapted to local sampling.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "HA": {
+    "status": "local",
+    "repository": null,
+    "commit": null,
+    "profile": "local",
+    "sources": [],
+    "official_config": {},
+    "model": {},
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 1e-05,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 15,
+      "clip_grad": 5,
+      "lr_milestones": [
+        20,
+        40,
+        50,
+        60,
+        70
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Historical average baseline; no unique official repository or trainable parameters.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "GRU": {
+    "status": "local",
+    "repository": null,
+    "commit": null,
+    "profile": "local",
+    "sources": [],
+    "official_config": {},
+    "model": {
+      "input_embedding_dim": 64,
+      "num_layers": 3,
+      "dropout": 0.1
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 1e-05,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 15,
+      "clip_grad": 5,
+      "lr_milestones": [
+        20,
+        40,
+        50,
+        60,
+        70
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Generic GRU baseline; no unique official forecasting hyperparameter preset.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "PROPHET": {
+    "status": "local",
+    "repository": null,
+    "commit": null,
+    "profile": "local",
+    "sources": [],
+    "official_config": {},
+    "model": {
+      "input_embedding_dim": 32,
+      "num_layers": 3,
+      "dropout": 0.1
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 1e-05,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 15,
+      "clip_grad": 5,
+      "lr_milestones": [
+        20,
+        40,
+        50,
+        60,
+        70
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Local research model; retain project defaults, not claimed to be upstream official.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  },
+  "PSTID": {
+    "status": "local",
+    "repository": null,
+    "commit": null,
+    "profile": "local",
+    "sources": [],
+    "official_config": {},
+    "model": {
+      "input_embedding_dim": 32,
+      "num_layers": 3,
+      "dropout": 0.1
+    },
+    "training": {
+      "learning_rate": 0.001,
+      "weight_decay": 1e-05,
+      "epochs": 100,
+      "batch_size": 64,
+      "early_stop_patience": 15,
+      "clip_grad": 5,
+      "lr_milestones": [
+        20,
+        40,
+        50,
+        60,
+        70
+      ],
+      "lr_gamma": 0.1,
+      "optimizer": "adam",
+      "optimizer_eps": 1e-08,
+      "lr_scheduler": "multistep",
+      "train_loss": "mae"
+    },
+    "notes": [
+      "Local research model; retain project defaults, not claimed to be upstream official.",
+      "Dataset node count, windows, channels, time resolution, seed, splits and preprocessing remain local. Shared MAE does not apply upstream missing-zero masks. See models/REGISTRY.md for reproduction limits."
+    ],
+    "retrieved_on": "2026-11-03"
+  }
+}

@@ -132,11 +132,8 @@ class GWNET(BaseModel):
 
         self.device = device or torch.device('cpu')
 
-        self.apt_layer = True
-        if self.apt_layer:
-            self.layers = int(
-                np.round(np.log((((self.in_window - 1) / (self.blocks * (self.kernel_size - 1))) + 1)) / np.log(2)))
-            print('# of layers change to %s' % self.layers)
+        # Honor the registered/caller-supplied architecture for every window.
+        # Short inputs are padded below; long inputs use the final forecast.
 
         self.adj_mx = adj_mx if adj_mx is not None else np.eye(self.num_nodes)
 
@@ -316,7 +313,7 @@ class GWNET(BaseModel):
         x = F.relu(skip)
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
-        return x
+        return x[..., -1:]
 
     def predict(self, batch):
         return self.forward(batch)

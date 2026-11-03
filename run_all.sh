@@ -3,29 +3,29 @@
 # 模型列表
 MODELS=(
     # "HA"
-    # "DCRNN"
-    # "AGCRN"
-    # "MTGNN"
-    # "GWNET"
-    # "STDN"
-    # "STAEformer" 
-    # "MegaCRN"
-    # "STID"
-    # "STNorm"
-    # "STSSL"
-    # "STSSDL"
-    # # "HimNet"
-    "PROPHET"
+    "DCRNN"
+    "AGCRN"
+    "MTGNN"
+    "GWNET"
+    "STDN"
+    "STAEformer" 
+    "MegaCRN"
+    "STID"
+    "STNorm"
+    "STSSL"
+    "STSSDL"
+    # "HimNet"
+    # "PROPHET"
 )
 
 
 # 数据集列表
 DATASETS=(
     "cq"
-    "hz"
-    "nyc_taxi"
-    "chi_taxi"
-    "nyc_bike"
+    # "hz"
+    # "nyc_taxi"
+    # "chi_taxi"
+    # "nyc_bike"
 )
 
 
@@ -33,26 +33,28 @@ DATASETS=(
 START_TIME=$(date +%s)
 
 SEED=(
-    "13"
-    "42"
-    # "88"
+    # "13"
+    # "42"
+    "88"
 )
 
-for seed in "${SEED[@]}"; do
-    for data in "${DATASETS[@]}"; do
-        echo "========================================"
-        echo "Running: python train.py --seed $seed --model $model --data nyc_taxi"
-        echo "========================================"
-        
-        python train.py --seed $seed --model PSTID --epoch 100 --gpu 4 --data $data
-        EXIT_CODE=$?
-        
-        if [ $EXIT_CODE -eq 0 ]; then
-            echo "[SUCCESS] $model on $seed completed"
-        else
-            echo "[ERROR] $model on $seed failed with exit code $EXIT_CODE"
-        fi
-        echo ""
+for model in "${MODELS[@]}"; do
+    for seed in "${SEED[@]}"; do
+        for data in "${DATASETS[@]}"; do
+            echo "========================================"
+            echo "Running: python train.py --seed $seed --model $model --data $data"
+            echo "========================================"
+            
+            python train.py --seed $seed --model $model --data $data --max_epoch 1 --gpu 0 
+            EXIT_CODE=$?
+            
+            if [ $EXIT_CODE -eq 0 ]; then
+                echo "[SUCCESS] $model on $seed completed"
+            else
+                echo "[ERROR] $model on $seed failed with exit code $EXIT_CODE"
+            fi
+            echo ""
+        done
     done
 done
 

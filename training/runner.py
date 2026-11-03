@@ -15,6 +15,7 @@ from .config import create_parser
 from .reproducibility import set_seed
 from .engine import train_single_model
 from .checkpoint import save_results
+from .optim import build_optimizer
 
 
 def main():
@@ -137,15 +138,15 @@ def main():
         optimizer = None
         scheduler = None
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_milestones, gamma=args.lr_gamma)
+        optimizer, scheduler = build_optimizer(model, args)
         # 确保 checkpoint 目录存在
         Path(args.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     # Training
+    criterion = torch.nn.MSELoss() if args.train_loss == 'mse' else mae_torch
     best_model_path, training_history, test_metrics = train_single_model(
         args, model, train_loader, val_loader, test_loader,
-        optimizer, scheduler, mae_torch, device, scaler, logger,
+        optimizer, scheduler, criterion, device, scaler, logger,
         model_name, num_nodes, adj_mx=adj_mx,
     )
 

@@ -40,7 +40,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device, scaler,
             else:
                 # 标准模型使用标准流程
                 X_norm = normalize_input(X, scaler, input_dim)
-                if model_name.upper() == 'HIMNET':
+                if model_name.upper() in ('HIMNET', 'DCRNN'):
                     # Decoder feedback must have the same scale as predictions.
                     y_norm = (y_raw[..., :1] - scaler.mean) / scaler.std
                     batches_seen = epoch * len(dataloader) + n_batches
@@ -158,7 +158,7 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
         logger.info(f"Test MAE: {test_metrics['MAE']:.4f} | Test RMSE: {test_metrics['RMSE']:.4f} | Test MAPE: {test_metrics['MAPE']:.2f}%")
         return best_model_path, training_history, test_metrics
 
-    for epoch in range(args.epochs):
+    for epoch in range(args.max_epoch):
         epoch_start = time.time()
 
         train_metrics = train_epoch(
@@ -179,7 +179,7 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
         # 构建日志信息
         if model_name in ['STSSL', 'STSSDL']:
             # SSL模型日志
-            logger.info(f"Epoch {epoch+1}/{args.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
+            logger.info(f"Epoch {epoch+1}/{args.max_epoch} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
             logger.info(
                 f"Train Loss: {train_metrics['loss']:.4f} | "
                 f"Pred Loss: {train_metrics.get('pred_loss', 0.0):.4f} | "
@@ -190,7 +190,7 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
             )
         elif model_name.upper() in ['PROPHET', 'STID', 'STDN']:
             # 主模型日志
-            logger.info(f"Epoch {epoch+1}/{args.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
+            logger.info(f"Epoch {epoch+1}/{args.max_epoch} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
             cont_loss = train_metrics.get('contrastive_loss', 0.0)
             cont_str = f" | ContLoss: {cont_loss:.6f}" if model_name.upper() == 'PROPHET' and cont_loss > 0 else ""
             logger.info(
@@ -201,7 +201,7 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
             )
         else:
             # 其他模型日志 (GRU, STGCN, AGCRN, etc.)
-            logger.info(f"Epoch {epoch+1}/{args.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
+            logger.info(f"Epoch {epoch+1}/{args.max_epoch} | Time: {epoch_time:.1f}s | LR: {current_lr:.0e} | Model: {model_name.upper()}")
             logger.info(
                 f"Train Loss: {train_metrics['loss']:.4f} | "
                 f"Val Loss: {val_metrics['loss']:.4f} | "
@@ -230,13 +230,15 @@ def train_single_model(args, model, train_loader, val_loader, test_loader,
         # HA 模型跳过 scheduler
         if scheduler is not None:
             scheduler.step()
+            for group in optimizer.param_groups:
+                group['lr'] = max(group['lr'], getattr(args, 'min_learning_rate', 0))
 
         # HA 模型没有参数，只评估一次后退出
         if is_ha:
             logger.info(f"HA model: no training needed, completing after 1 epoch(s)")
             break
 
-        if patience_counter >= args.early_stop_patience:
+        if args.early_stop_patience > 0 and patience_counter >= args.early_stop_patience:
             logger.info(f"Early stopping at epoch {epoch+1} (no improvement for {patience_counter} epochs)")
             break
 

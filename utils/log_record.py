@@ -83,7 +83,7 @@ Model dimension: {getattr(args, 'input_embedding_dim', 'N/A')}
 Num layers: {getattr(args, 'num_layers', 'N/A')}
 Dropout: {getattr(args, 'dropout', 'N/A')}
 Learning rate: {getattr(args, 'learning_rate', 'N/A')}
-Epochs: {getattr(args, 'epochs', 'N/A')}
+Epochs: {getattr(args, 'max_epoch', 'N/A')}
 Batch size: {getattr(args, 'batch_size', 'N/A')}
 Device: {getattr(args, 'device', 'N/A')}
 Seed: {getattr(args, 'seed', 'N/A')}
